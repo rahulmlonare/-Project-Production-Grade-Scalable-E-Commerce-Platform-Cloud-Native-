@@ -1,0 +1,32 @@
+AWS CLI installation on Window
+
+msiexec.exe /i https://awscli.amazonaws.com/AWSCLIV2.msi
+This will:
+
+Download the installer
+Launch installation automatically
+
+aws --version
+
+📦 Step 2: Install All Tools (ONE BY ONE)
+
+🔹 Install Git
+winget install --id Git.Git -e --source winget
+git --version
+
+🔹 Install Docker Desktop
+winget install --id Docker.DockerDesktop -e --source winget
+docker --version
+
+🔹 Install Terraform
+winget install --id HashiCorp.Terraform -e
+terraform -version
+
+🔹 Install kubectl
+winget install --id Kubernetes.kubectl -e
+kubectl version --client
+
+🔹 Install eksctl
+winget install eksctl
+eksctl version
+
