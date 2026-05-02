@@ -1,0 +1,176 @@
+Step 1. Create folders inside the Ecommerce-DevOps-Project folder
+
+> cd Ecommerce-DevOps-Project
+> mkdir terraform App k8s Jenkins
+
+If you are using tools like Docker, k8s, it's better to use GitBash or PowerShell
+
+Step 2. Initialize git 1st
+
+> git init
+
+Step 3. Create README.md
+
+> notepad README.md   (It will open Notepad)
+
+Write E-commerce DevOps Project 
+Phase 2: Terraform VPC setup started     (save & exit)
+
+
+What you will build
+
+A VPC with:
+
+1 VPC
+2 Public Subnets (for Load Balancer)
+2 Private Subnets (for EKS, RDS)
+Internet Gateway (IGW)
+NAT Gateway (for private internet access)
+Route Tables
+
+
+Step 1: Go to Terraform Directory 
+cd ~/ecommerce-devops-project/terraform
+
+Step 2: Create Terraform Files
+touch main.tf variables.tf outputs.tf
+
+Step 3: Add Basic Provider Config
+
+Open main.tf:
+
+nano main.tf
+
+provider "aws" {
+  region = "ap-south-1"
+}
+
+Save:
+
+CTRL + X
+Y
+Enter
+
+Step 4: Initialize Terraform
+terraform init
+
+👉 This downloads AWS provider plugins.
+
+Step 6: Create Internet Gateway
+
+Add below VPC:
+
+resource "aws_internet_gateway" "igw" {
+  vpc_id = aws_vpc.main.id
+
+  tags = {
+    Name = "ecommerce-igw"
+  }
+}
+
+Step 7: Create Public Subnets
+
+resource "aws_subnet" "public_1" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.1.0/24"
+  availability_zone       = "ap-south-1a"
+  map_public_ip_on_launch = true
+
+  tags = {
+    Name = "public-subnet-1"
+  }
+}
+
+resource "aws_subnet" "public_2" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.2.0/24"
+  availability_zone       = "ap-south-1b"
+  map_public_ip_on_launch = true
+
+  tags = {
+    Name = "public-subnet-2"
+  }
+}
+
+Step 8: Create Private Subnets
+
+resource "aws_subnet" "private_1" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.3.0/24"
+  availability_zone = "ap-south-1a"
+
+  tags = {
+    Name = "private-subnet-1"
+  }
+}
+
+resource "aws_subnet" "private_2" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.4.0/24"
+  availability_zone = "ap-south-1b"
+
+  tags = {
+    Name = "private-subnet-2"
+  }
+}
+
+Step 9: Route Table for Public Subnets
+
+resource "aws_route_table" "public_rt" {
+  vpc_id = aws_vpc.main.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.igw.id
+  }
+
+  tags = {
+    Name = "public-rt"
+  }
+}
+
+Step 10: Associate Public Subnets
+
+resource "aws_route_table_association" "public_1_assoc" {
+  subnet_id      = aws_subnet.public_1.id
+  route_table_id = aws_route_table.public_rt.id
+}
+
+resource "aws_route_table_association" "public_2_assoc" {
+  subnet_id      = aws_subnet.public_2.id
+  route_table_id = aws_route_table.public_rt.id
+}
+
+Stop here (Important checkpoint)
+
+Do NOT create NAT Gateway yet (it costs money 💸).
+We’ll add it later with cost optimization
+
+Step 11: Run Terraform
+terraform plan
+
+Then:
+
+terraform apply
+
+Type:
+
+yes
+
+Step 12: Verify in AWS Console
+
+Go to VPC dashboard and confirm:
+
+VPC created
+4 subnets created
+IGW attached
+Route table working
+
+Next Phase (after this)
+
+We will add:
+
+NAT Gateway (with cost-safe approach)
+Security Groups
+Then move to EKS cluster (real production setup)
+
