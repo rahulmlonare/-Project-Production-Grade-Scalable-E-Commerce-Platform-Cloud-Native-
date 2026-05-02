@@ -1,0 +1,18 @@
+Step 1. Create folders inside the Ecommerce-DevOps-Project folder
+
+> cd Ecommerce-DevOps-Project
+> mkdir terraform App k8s Jenkins
+
+If you are using tools like Docker, k8s, it's better to use GitBash or PowerShell
+
+Step 2. Initialize git 1st
+
+> git init
+
+Step 3. Create README.md
+
+> notepad README.md   (It will open Notepad)
+
+Write E-commerce DevOps Project 
+Phase 2: Terraform VPC setup started     (save & exit)
+
