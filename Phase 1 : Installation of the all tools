@@ -1,3 +1,10 @@
+AWS login on Git-Bash
+
+> aws login
+Authenticate it via the root user on your AWS console & then run;
+
+> aws sts get-caller-identity
+
 AWS CLI installation on Window
 
 msiexec.exe /i https://awscli.amazonaws.com/AWSCLIV2.msi
