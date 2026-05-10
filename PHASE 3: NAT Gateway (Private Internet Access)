@@ -1,0 +1,62 @@
+Allow private subnets → outbound internet (for updates, Docker pulls, etc.) WITHOUT exposing them publicly.
+
+🧠 Concept First (Important)
+
+Flow:
+
+Private Subnet → NAT Gateway → Internet Gateway → Internet
+
+👉 NAT = outbound only
+👉 IGW = inbound + outbound (public)
+
+Step 1: Add Elastic IP (Required for NAT)
+
+Open main.tf and add:
+
+resource "aws_eip" "nat_eip" {
+  domain = "vpc"
+}
+
+✍️ Step 2: Create NAT Gateway (in public subnet)
+resource "aws_nat_gateway" "nat" {
+  allocation_id = aws_eip.nat_eip.id
+  subnet_id     = aws_subnet.public_1.id
+
+  tags = {
+    Name = "ecommerce-nat"
+  }
+}
+
+✍️ Step 4: Associate Private Subnets
+resource "aws_route_table_association" "private_1_assoc" {
+  subnet_id      = aws_subnet.private_1.id
+  route_table_id = aws_route_table.private_rt.id
+}
+
+resource "aws_route_table_association" "private_2_assoc" {
+  subnet_id      = aws_subnet.private_2.id
+  route_table_id = aws_route_table.private_rt.id
+}
+
+▶️ Step 5: Apply Terraform
+terraform plan
+terraform apply
+
+Type:
+
+yes
+
+⏳ Wait Time
+
+NAT Gateway takes 2–3 minutes to create.
+
+Don’t panic if it’s slow.
+
+✅ Step 6: Verify
+
+In AWS Console:
+
+NAT Gateway → Available
+Private route table → 0.0.0.0/0 → NAT
+Subnets associated properly
+
