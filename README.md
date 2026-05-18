@@ -1,5 +1,5 @@
 
-# -Project-Production-Grade-Scalable-E-Commerce-Platform-Cloud-Native-
+# -Project-Production-Grade-Scalable- E-Commerce-App - Cloud-Native
 Scalable E-Commerce Platform (Cloud-Native)
 
 What You Will Build
