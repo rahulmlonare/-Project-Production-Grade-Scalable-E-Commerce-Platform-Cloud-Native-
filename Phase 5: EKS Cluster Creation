@@ -1,0 +1,687 @@
+Your infrastructure already exists in:
+
+ap-southeast-2
+
+We will:
+
+Reuse existing VPC
+Reuse existing subnets
+Reuse NAT Gateway
+Reuse routing
+
+🧠 Architecture After This
+Internet
+   ↓
+ALB (Public Subnets)
+   ↓
+EKS Worker Nodes (Private Subnets)
+   ↓
+Applications
+
+⚠️ BEFORE STARTING (VERY IMPORTANT)
+
+Ensure:
+
+Terraform networking already exists
+NAT Gateway exists
+Public + Private subnets exist
+
+🔍 STEP 1: Verify AWS Region
+
+Run:
+
+aws configure get region
+
+If output is NOT:
+
+ap-southeast-2
+
+Then run:
+
+aws configure
+
+Set:
+
+Default region: ap-southeast-2
+🔍 STEP 2: Verify Terraform Resources Exist
+
+Run:
+
+terraform state list
+
+You should see:
+
+VPC
+Subnets
+NAT
+Route tables
+✍️ STEP 3: Add Kubernetes Tags to Subnets
+
+This is CRITICAL.
+
+Without these tags:
+
+Load Balancers fail
+EKS networking breaks
+✅ Public Subnet Tags
+
+Inside BOTH public subnet blocks:
+
+tags = {
+  Name = "public-subnet-1"
+
+  "kubernetes.io/role/elb" = "1"
+  "kubernetes.io/cluster/ecommerce-cluster" = "shared"
+}
+
+Second public subnet:
+
+tags = {
+  Name = "public-subnet-2"
+
+  "kubernetes.io/role/elb" = "1"
+  "kubernetes.io/cluster/ecommerce-cluster" = "shared"
+}
+✅ Private Subnet Tags
+tags = {
+  Name = "private-subnet-1"
+
+  "kubernetes.io/role/internal-elb" = "1"
+  "kubernetes.io/cluster/ecommerce-cluster" = "shared"
+}
+
+Second private subnet:
+
+tags = {
+  Name = "private-subnet-2"
+
+  "kubernetes.io/role/internal-elb" = "1"
+  "kubernetes.io/cluster/ecommerce-cluster" = "shared"
+}
+🧠 Why These Tags Matter
+Tag	Purpose
+kubernetes.io/role/elb	Public ALB
+kubernetes.io/role/internal-elb	Internal Load Balancer
+kubernetes.io/cluster/...	EKS discovers subnets
+▶️ STEP 4: Apply Terraform Changes
+
+Run:
+
+terraform apply
+
+Type:
+
+yes
+🔍 STEP 5: Get Subnet IDs
+
+Go to:
+
+AWS Console
+→ VPC
+→ Subnets
+
+Copy:
+
+Public subnet IDs
+
+Example:
+
+subnet-11111
+subnet-22222
+Private subnet IDs
+
+Example:
+
+subnet-33333
+subnet-44444
+🧠 IMPORTANT
+
+Make sure:
+
+Public subnets = map public IP enabled
+Private subnets = no public IP
+🚀 STEP 6: Create EKS Cluster in Existing VPC
+
+NOW run this command.
+
+Replace with YOUR subnet IDs
+eksctl create cluster \
+--name ecommerce-cluster \
+--region ap-southeast-2 \
+--vpc-private-subnets subnet-33333,subnet-44444 \
+--vpc-public-subnets subnet-11111,subnet-22222 \
+--nodegroup-name workers \
+--node-type t3.medium \
+--nodes 2 \
+--managed
+🧠 Deep Explanation of This Command
+--vpc-private-subnets
+
+Worker nodes go here.
+
+Why?
+
+Secure
+No public exposure
+Industry best practice
+--vpc-public-subnets
+
+ALB will use these later.
+
+Why?
+
+Internet users need app access
+--managed
+
+AWS manages:
+
+Node health
+Updates
+Scaling integrations
+⏳ STEP 7: Wait Patiently
+
+Cluster creation takes:
+
+15–25 minutes
+
+Do NOT close terminal.
+
+🔍 STEP 8: Verify Cluster
+
+After success:
+
+kubectl get nodes
+
+Expected:
+
+NAME           STATUS   ROLES    AGE   VERSION
+ip-xxxxx       Ready    <none>   ...
+🔍 STEP 9: Verify in AWS Console
+
+Go to:
+
+EKS → Clusters
+
+Check:
+
+Cluster status = Active
+Compute tab shows worker nodes
+🧠 WHAT YOU HAVE ACHIEVED
+
+You now have REAL enterprise architecture:
+
+Terraform Networking
+        ↓
+Custom VPC
+        ↓
+EKS Inside Existing Network
+        ↓
+Private Worker Nodes
+        ↓
+Public Load Balancer Architecture
+
+This is NOT beginner-level anymore.
+
+⚠️ COST REMINDER
+
+After practice:
+
+Delete EKS:
+
+eksctl delete cluster \
+--name ecommerce-cluster \
+--region ap-southeast-2
+
+Later destroy Terraform:
+
+terraform destroy
+🎯 Your Next Step
+
+Run the EKS creation command now.
+
+Reply with:
+
+👉 EKS creating
+
+OR paste any error immediately.
+
+
+eks created
+
+Excellent 🔥
+You now have a real production-style EKS environment running in your own Terraform VPC.
+
+Most beginners stop at:
+
+simple EC2
+basic Docker
+toy Kubernetes
+
+But you now have:
+
+✅ Custom VPC
+✅ Public/Private subnet architecture
+✅ NAT Gateway
+✅ EKS in existing VPC
+✅ Managed node group
+✅ Multi-AZ setup
+
+This is already solid resume material.
+
+🚀 PHASE 5: Deploy Your First Application on EKS
+
+Now we move to the most exciting part:
+
+Dockerized App
+      ↓
+Kubernetes Deployment
+      ↓
+Service
+      ↓
+Access Application
+🎯 Goal
+
+Deploy a real containerized app on EKS.
+
+You’ll learn:
+
+Pods
+Deployments
+Services
+LoadBalancer
+kubectl workflow
+🧠 What We’ll Deploy
+
+For now:
+
+Simple NGINX application
+
+Later:
+
+Real microservices
+Backend APIs
+Databases
+CI/CD
+🔍 STEP 1: Verify Cluster Connectivity
+
+Run:
+
+kubectl get nodes
+
+Expected:
+
+STATUS = Ready
+🔍 STEP 2: Create Namespace
+
+Namespaces logically separate applications.
+
+Run:
+
+kubectl create namespace ecommerce
+
+Verify:
+
+kubectl get namespaces
+🧠 Why Namespace?
+
+Real companies separate:
+
+dev
+qa
+prod
+
+using namespaces.
+
+📁 STEP 3: Create Kubernetes Folder Structure
+
+Inside project root:
+
+mkdir -p k8s/nginx
+cd k8s/nginx
+✍️ STEP 4: Create Deployment YAML
+
+Create file:
+
+touch deployment.yaml
+
+Open in VS Code.
+
+Paste:
+
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: nginx-deployment
+  namespace: ecommerce
+
+spec:
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: nginx
+
+  template:
+    metadata:
+      labels:
+        app: nginx
+
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:latest
+
+        ports:
+        - containerPort: 80
+🧠 Deep Understanding
+replicas: 2
+
+Creates:
+
+2 Pods
+
+Why?
+
+High availability
+Load distribution
+image: nginx:latest
+
+Pulls Docker image from:
+Docker Hub
+
+containerPort: 80
+
+Container listens on port 80.
+
+▶️ STEP 5: Deploy Application
+
+Run:
+
+kubectl apply -f deployment.yaml
+🔍 STEP 6: Verify Deployment
+
+Run:
+
+kubectl get deployments -n ecommerce
+
+Expected:
+
+READY   UP-TO-DATE   AVAILABLE
+2/2
+🔍 STEP 7: Verify Pods
+
+Run:
+
+kubectl get pods -n ecommerce
+
+Expected:
+
+2 Running pods
+🧠 What Happened Internally?
+
+Kubernetes:
+
+Deployment
+   ↓
+ReplicaSet
+   ↓
+Pods
+   ↓
+Containers
+🔥 STEP 8: Expose Application
+
+Now create Service.
+
+Create file:
+
+touch service.yaml
+
+Paste:
+
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: nginx-service
+  namespace: ecommerce
+
+spec:
+  selector:
+    app: nginx
+
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+
+  type: LoadBalancer
+🧠 Why Service?
+
+Pods are temporary.
+
+Service gives:
+
+Stable networking
+Load balancing
+Single access point
+🧠 Why LoadBalancer?
+
+Because on AWS:
+
+Service Type LoadBalancer
+        ↓
+Creates AWS ELB automatically
+
+This is huge interview knowledge.
+
+▶️ STEP 9: Apply Service
+
+Run:
+
+kubectl apply -f service.yaml
+🔍 STEP 10: Verify Service
+
+Run:
+
+kubectl get svc -n ecommerce
+
+Initially:
+
+EXTERNAL-IP = pending
+
+Wait 2–5 mins.
+
+Then:
+
+EXTERNAL-IP = <AWS LoadBalancer DNS>
+🌐 STEP 11: Access Application
+
+Copy EXTERNAL-IP.
+
+Open in browser:
+
+http://<external-ip>
+
+You should see:
+
+Welcome to nginx!
+🧠 WHAT YOU JUST LEARNED
+
+You now understand:
+
+✅ Pods
+✅ Deployments
+✅ ReplicaSets
+✅ Services
+✅ AWS LoadBalancer integration
+✅ Kubernetes networking
+✅ Namespace isolation
+
+This is already interview-level Kubernetes knowledge.
+
+🎯 Your Task
+
+Complete ALL steps.
+
+Then reply:
+
+👉 nginx app deployed
+
+OR paste any error/output.
+
+🔍 STEP 2: Verify Terraform Resources Exist
+
+Run:
+
+terraform state list
+
+You should see:
+
+VPC
+Subnets
+NAT
+Route tables
+
+✍️ STEP 3: Add Kubernetes Tags to Subnets
+
+This is CRITICAL.
+
+Without these tags:
+
+Load Balancers fail
+EKS networking breaks
+
+✅ Public Subnet Tags
+
+Inside BOTH public subnet blocks:
+
+tags = {
+  Name = "public-subnet-1"
+
+  "kubernetes.io/role/elb" = "1"
+  "kubernetes.io/cluster/ecommerce-cluster" = "shared"
+}
+
+Second public subnet:
+
+tags = {
+  Name = "public-subnet-2"
+
+  "kubernetes.io/role/elb" = "1"
+  "kubernetes.io/cluster/ecommerce-cluster" = "shared"
+}
+
+✅ Private Subnet Tags
+tags = {
+  Name = "private-subnet-1"
+
+  "kubernetes.io/role/internal-elb" = "1"
+  "kubernetes.io/cluster/ecommerce-cluster" = "shared"
+}
+
+Second private subnet:
+
+tags = {
+  Name = "private-subnet-2"
+
+  "kubernetes.io/role/internal-elb" = "1"
+  "kubernetes.io/cluster/ecommerce-cluster" = "shared"
+}
+
+🧠 Why These Tags Matter
+Tag	Purpose
+kubernetes.io/role/elb           	  Public ALB
+kubernetes.io/role/internal-elb	    Internal Load Balancer
+kubernetes.io/cluster/...	           EKS discovers subnets
+
+STEP 4: Apply Terraform Changes
+
+Run:
+
+terraform apply
+
+Type:
+
+yes
+
+🔍 STEP 5: Get Subnet IDs
+
+Go to:
+
+AWS Console
+→ VPC
+→ Subnets
+
+Copy:
+
+Public subnet IDs
+
+Example:
+
+subnet-11111
+subnet-22222
+
+Private subnet IDs
+
+Example:
+
+subnet-33333
+subnet-44444
+
+🧠 IMPORTANT
+
+Make sure:
+
+Public subnets = map public IP enabled
+Private subnets = no public IP
+
+🚀 STEP 6: Create EKS Cluster in Existing VPC
+
+NOW run this command.
+
+Replace with YOUR subnet IDs
+eksctl create cluster \
+--name ecommerce-cluster \
+--region ap-southeast-2 \
+--vpc-private-subnets subnet-33333,subnet-44444 \
+--vpc-public-subnets subnet-11111,subnet-22222 \
+--nodegroup-name workers \
+--node-type t3.medium \
+--nodes 2 \
+--managed
+
+🧠 Deep Explanation of This Command
+--vpc-private-subnets
+
+Worker nodes go here.
+
+Why?
+
+Secure
+No public exposure
+Industry best practice
+
+🧠 WHAT YOU HAVE ACHIEVED
+
+You now have REAL enterprise architecture:
+
+Terraform Networking
+        ↓
+Custom VPC
+        ↓
+EKS Inside Existing Network
+        ↓
+Private Worker Nodes
+        ↓
+Public Load Balancer Architecture
+
+Delete EKS:
+
+eksctl delete cluster \
+--name ecommerce-cluster \
+--region ap-southeast-2
+
+Later destroy Terraform:
+
+terraform destroy
