@@ -226,16 +226,4 @@ PHASE 9: CI/CD + Terraform Integration
 Use Terraform in Jenkins
 Automate infra creation
 
-**What You Can Say in Interview**
-
-After this project, you can confidently explain:
-
-End-to-end architecture
-CI/CD pipeline
-Kubernetes scaling
-AWS networking
-Security best practices
-Monitoring & logging
-Failure handling
-
 
