@@ -1,0 +1,215 @@
+🚀 PHASE 5: Deploy Your First Application on EKS
+
+Now we move to the most exciting part:
+
+Dockerized App
+      ↓
+Kubernetes Deployment
+      ↓
+Service
+      ↓
+Access Application
+
+🎯 Goal
+
+Deploy a real containerized app on EKS.
+
+You’ll learn:
+
+Pods
+Deployments
+Services
+LoadBalancer
+kubectl workflow
+
+🧠 What We’ll Deploy
+
+For now:
+
+Simple NGINX application
+
+Later:
+
+Real microservices
+Backend APIs
+Databases
+CI/CD
+
+🔍 STEP 1: Verify Cluster Connectivity
+
+Run:
+
+kubectl get nodes
+
+Expected:
+
+STATUS = Ready
+
+🔍 STEP 2: Create Namespace
+
+Namespaces logically separate applications.
+
+Run:
+
+kubectl create namespace ecommerce
+
+Verify:
+
+kubectl get namespaces
+
+📁 STEP 3: Create Kubernetes Folder Structure
+
+Inside project root:
+
+mkdir -p k8s/nginx
+cd k8s/nginx
+
+✍️ STEP 4: Create Deployment YAML
+
+Create file:
+
+touch deployment.yaml
+
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: nginx-deployment
+  namespace: ecommerce
+
+spec:
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: nginx
+
+  template:
+    metadata:
+      labels:
+        app: nginx
+
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:latest
+
+        ports:
+        - containerPort: 80
+
+▶️ STEP 5: Deploy Application
+
+Run:
+
+kubectl apply -f deployment.yaml
+🔍 STEP 6: Verify Deployment
+
+Run:
+
+kubectl get deployments -n ecommerce
+
+Expected:
+
+READY   UP-TO-DATE   AVAILABLE
+2/2
+
+STEP 7: Verify Pods
+
+Run:
+
+kubectl get pods -n ecommerce
+
+Expected:
+
+2 Running pods
+
+🧠 What Happened Internally?
+
+Kubernetes:
+
+Deployment
+   ↓
+ReplicaSet
+   ↓
+Pods
+   ↓
+Containers
+
+🔥 STEP 8: Expose Application
+
+Now create Service.
+
+Create file:
+
+touch service.yaml
+
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: nginx-service
+  namespace: ecommerce
+
+spec:
+  selector:
+    app: nginx
+
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+
+  type: LoadBalancer
+
+🧠 Why Service?
+
+Pods are temporary.
+
+Service gives:
+
+Stable networking
+Load balancing
+Single access point
+
+🧠 Why LoadBalancer?
+
+Because on AWS:
+
+Service Type LoadBalancer
+        ↓
+Creates AWS ELB automatically
+
+This is huge interview knowledge.
+
+▶️ STEP 9: Apply Service
+
+Run:
+
+kubectl apply -f service.yaml
+🔍 STEP 10: Verify Service
+
+Run:
+
+kubectl get svc -n ecommerce
+
+Initially:
+
+EXTERNAL-IP = pending
+
+Wait 2–5 mins.
+
+Then:
+
+EXTERNAL-IP = <AWS LoadBalancer DNS>
+
+🌐 STEP 11: Access Application
+
+Copy EXTERNAL-IP.
+
+Open in browser:
+
+http://<external-ip>
+
+You should see:
+
+Welcome to nginx!
