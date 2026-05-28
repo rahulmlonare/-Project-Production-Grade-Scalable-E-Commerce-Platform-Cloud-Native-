@@ -1,0 +1,273 @@
+cd terraform
+
+Current structure:
+
+terraform/
+├── main.tf
+├── variables.tf
+├── outputs.tf
+
+We’ll add RDS resources.
+
+Step 1 — variables.tf
+
+Open:
+
+nano variables.tf
+
+variable "db_name" {
+  default = "ecommerce"
+}
+
+variable "db_username" {
+  default = "postgres"
+}
+
+variable "db_password" {
+  description = "RDS password"
+  sensitive   = true
+}
+
+Step 2 — main.tf
+
+Append this at bottom.
+
+DB subnet group
+resource "aws_db_subnet_group" "ecommerce" {
+  name = "ecommerce-db-subnet-group"
+
+  subnet_ids = [
+    aws_subnet.private_1.id,
+    aws_subnet.private_2.id
+  ]
+
+  tags = {
+    Name = "ecommerce-db-subnet-group"
+  }
+}
+
+One important thing for EKS
+
+Your backend pods inside EKS usually won’t automatically use app_sg.
+
+They typically use:
+
+EKS node security group
+
+or pod ENI SG.
+
+So later RDS may fail with:
+
+connection refused
+
+because DB allows:
+
+app_sg
+
+but EKS nodes use another SG.
+
+Best option
+
+Allow both:
+
+Change DB ingress to:
+
+resource "aws_security_group" "db_sg" {
+  name   = "db-sg"
+  vpc_id = aws_vpc.main.id
+
+  ingress {
+    from_port       = 5432
+    to_port         = 5432
+    protocol        = "tcp"
+
+    security_groups = [
+      aws_security_group.app_sg.id
+    ]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+Then after Terraform apply, once EKS node SG is visible, add it too.
+
+For now your current config is okay.
+
+One more thing
+
+Your provider is:
+
+region = "ap-southeast-2"
+
+Earlier you mentioned ap-south-1, but your code and subnets are Sydney:
+
+ap-southeast-2a
+ap-southeast-2b
+
+That’s perfectly fine if your EKS cluster is also in Sydney.
+
+Just make sure:
+
+aws eks list-clusters --region ap-southeast-2
+
+shows:
+
+Ecommerce-cluster
+
+Since your EKS cluster already exists, let’s find the EKS node security group and then allow it in db_sg.
+
+That way your backend pods can connect to PostgreSQL.
+
+Step 1 — Find EKS node security group in AWS Console
+
+Go to:
+
+EC2 instances
+
+Click any worker EC2 instance.
+
+Then under Security you'll see SG like:
+
+eks-cluster-sg-xxxx
+eks-node-group-sg-yyyy
+
+Copy the one attached to worker nodes.
+
+Example:
+
+sg-0123456789abcdef
+Faster way (EC2 console)
+
+Go:
+
+EC2 → Instances
+
+Search:
+
+EKS
+
+Open worker instance.
+
+Under Security tab:
+
+Copy SG:
+
+eks-node-group-sg
+
+Step 2 — Where to use it
+
+In your Terraform:
+
+resource "aws_security_group" "db_sg" {
+  name   = "db-sg"
+  vpc_id = aws_vpc.main.id
+
+  ingress {
+    from_port = 5432
+    to_port   = 5432
+    protocol  = "tcp"
+
+    security_groups = [
+      aws_security_group.app_sg.id,
+      "sg-0123456789abcdef"
+    ]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+terraform validate
+terraform plan
+terraform apply
+
+Why this matters
+
+Traffic path:
+
+Backend pod
+   ↓
+EKS worker node SG
+   ↓
+RDS db_sg
+
+If DB only allows app_sg:
+
+❌ pod cannot connect
+
+If DB allows node SG:
+
+✅ PostgreSQL works
+
+Add this below your DB security group section:
+
+####################################
+# RDS Subnet Group
+####################################
+resource "aws_db_subnet_group" "db_subnet_group" {
+  name = "app-db-subnet-group"
+
+  subnet_ids = [
+    aws_subnet.private_1.id,
+    aws_subnet.private_2.id
+  ]
+
+  tags = {
+    Name = "app-db-subnet-group"
+  }
+}
+
+####################################
+# PostgreSQL RDS Instance
+####################################
+resource "aws_db_instance" "postgres" {
+  identifier = "app-postgres-db"
+
+  engine         = "postgres"
+  engine_version = "15.5"
+
+  instance_class = "db.t3.micro"
+
+  allocated_storage = 20
+  storage_type      = "gp2"
+
+  db_name  = "appdb"
+  username = "postgres"
+  password = "YourStrongPassword123!"
+
+  db_subnet_group_name   = aws_db_subnet_group.db_subnet_group.name
+  vpc_security_group_ids = [aws_security_group.db_sg.id]
+
+  publicly_accessible = false
+
+  skip_final_snapshot = true
+
+  tags = {
+    Name = "app-postgres-db"
+  }
+}
+
+Then run:
+terraform fmt
+terraform validate
+terraform plan
+
+Expected:
+
+Plan: 2 to add, 0 to change, 0 to destroy
+
+Then:
+
+terraform apply
+
+Then we’ll do the next step:
+connect backend/EKS app to PostgreSQL using the RDS endpoint.
