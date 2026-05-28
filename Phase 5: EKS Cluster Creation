@@ -142,18 +142,19 @@ Public subnets = map public IP enabled
 Private subnets = no public IP
 🚀 STEP 6: Create EKS Cluster in Existing VPC
 
-NOW run this command.
+Create EKS Using YOUR VPC:
 
-Replace with YOUR subnet IDs
 eksctl create cluster \
---name ecommerce-cluster \
+--name Ecommerce-cluster \
 --region ap-southeast-2 \
---vpc-private-subnets subnet-33333,subnet-44444 \
---vpc-public-subnets subnet-11111,subnet-22222 \
+--vpc-private-subnets subnet-0b7021a2024a48289,subnet-0887ef050db0f9e28 \
+--vpc-public-subnets subnet-0f2ce81535f673121,subnet-07073ed0583842053 \
 --nodegroup-name workers \
 --node-type t3.medium \
 --nodes 2 \
 --managed
+
+
 🧠 Deep Explanation of This Command
 --vpc-private-subnets
 
