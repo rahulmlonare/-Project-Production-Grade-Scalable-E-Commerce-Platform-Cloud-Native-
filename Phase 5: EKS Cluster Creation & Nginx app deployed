@@ -55,6 +55,7 @@ VPC
 Subnets
 NAT
 Route tables
+
 ✍️ STEP 3: Add Kubernetes Tags to Subnets
 
 This is CRITICAL.
@@ -98,11 +99,14 @@ tags = {
   "kubernetes.io/role/internal-elb" = "1"
   "kubernetes.io/cluster/ecommerce-cluster" = "shared"
 }
+
 🧠 Why These Tags Matter
+
 Tag	Purpose
 kubernetes.io/role/elb	Public ALB
 kubernetes.io/role/internal-elb	Internal Load Balancer
 kubernetes.io/cluster/...	EKS discovers subnets
+
 ▶️ STEP 4: Apply Terraform Changes
 
 Run:
@@ -112,6 +116,7 @@ terraform apply
 Type:
 
 yes
+
 🔍 STEP 5: Get Subnet IDs
 
 Go to:
@@ -134,12 +139,14 @@ Example:
 
 subnet-33333
 subnet-44444
+
 🧠 IMPORTANT
 
 Make sure:
 
 Public subnets = map public IP enabled
 Private subnets = no public IP
+
 🚀 STEP 6: Create EKS Cluster in Existing VPC
 
 Create EKS Using YOUR VPC:
@@ -156,6 +163,7 @@ eksctl create cluster \
 
 
 🧠 Deep Explanation of This Command
+
 --vpc-private-subnets
 
 Worker nodes go here.
@@ -179,6 +187,7 @@ AWS manages:
 Node health
 Updates
 Scaling integrations
+
 ⏳ STEP 7: Wait Patiently
 
 Cluster creation takes:
@@ -197,6 +206,7 @@ Expected:
 
 NAME           STATUS   ROLES    AGE   VERSION
 ip-xxxxx       Ready    <none>   ...
+
 🔍 STEP 9: Verify in AWS Console
 
 Go to:
@@ -225,8 +235,6 @@ This is NOT beginner-level anymore.
 
 ⚠️ COST REMINDER
 
-After practice:
-
 Delete EKS:
 
 eksctl delete cluster \
@@ -238,25 +246,10 @@ Later destroy Terraform:
 terraform destroy
 🎯 Your Next Step
 
-Run the EKS creation command now.
-
-Reply with:
-
-👉 EKS creating
-
-OR paste any error immediately.
-
-
 eks created
 
 Excellent 🔥
 You now have a real production-style EKS environment running in your own Terraform VPC.
-
-Most beginners stop at:
-
-simple EC2
-basic Docker
-toy Kubernetes
 
 But you now have:
 
@@ -267,7 +260,6 @@ But you now have:
 ✅ Managed node group
 ✅ Multi-AZ setup
 
-This is already solid resume material.
 
 🚀 PHASE 5: Deploy Your First Application on EKS
 
@@ -280,11 +272,12 @@ Kubernetes Deployment
 Service
       ↓
 Access Application
+
 🎯 Goal
 
 Deploy a real containerized app on EKS.
 
-You’ll learn:
+we’ll learn:
 
 Pods
 Deployments
@@ -323,6 +316,7 @@ kubectl create namespace ecommerce
 Verify:
 
 kubectl get namespaces
+
 🧠 Why Namespace?
 
 Real companies separate:
@@ -339,6 +333,7 @@ Inside project root:
 
 mkdir -p k8s/nginx
 cd k8s/nginx
+
 ✍️ STEP 4: Create Deployment YAML
 
 Create file:
@@ -375,6 +370,7 @@ spec:
 
         ports:
         - containerPort: 80
+
 🧠 Deep Understanding
 replicas: 2
 
@@ -400,6 +396,7 @@ Container listens on port 80.
 Run:
 
 kubectl apply -f deployment.yaml
+
 🔍 STEP 6: Verify Deployment
 
 Run:
@@ -419,6 +416,7 @@ kubectl get pods -n ecommerce
 Expected:
 
 2 Running pods
+
 🧠 What Happened Internally?
 
 Kubernetes:
@@ -430,6 +428,7 @@ ReplicaSet
 Pods
    ↓
 Containers
+
 🔥 STEP 8: Expose Application
 
 Now create Service.
@@ -457,6 +456,7 @@ spec:
       targetPort: 80
 
   type: LoadBalancer
+
 🧠 Why Service?
 
 Pods are temporary.
@@ -466,6 +466,7 @@ Service gives:
 Stable networking
 Load balancing
 Single access point
+
 🧠 Why LoadBalancer?
 
 Because on AWS:
@@ -481,6 +482,7 @@ This is huge interview knowledge.
 Run:
 
 kubectl apply -f service.yaml
+
 🔍 STEP 10: Verify Service
 
 Run:
