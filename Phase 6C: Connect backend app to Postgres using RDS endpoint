@@ -1,0 +1,765 @@
+So your AWS infra now includes:
+
+✅ VPC
+✅ Public/private subnets
+✅ Internet Gateway
+✅ NAT Gateway
+✅ Route tables
+✅ Security groups
+✅ EKS-ready subnet tags
+✅ PostgreSQL RDS
+
+That’s a solid production-style base.
+
+Next step: get the RDS endpoint
+
+Open AWS:
+
+RDS → Databases → app-postgres-db
+
+RDS → Databases → app-postgres-db
+
+Copy:
+
+Endpoint
+
+Looks like:
+
+app-postgres-db.xxxxxx.ap-southeast-2.rds.amazonaws.com
+
+We’ll use it in backend config.
+
+Quick connectivity check
+
+Verify:
+
+DB status
+
+Should say:
+
+Available
+Public access
+
+Should say:
+
+No
+VPC
+
+Should be:
+ecommerce-vpc
+Security group
+
+Should show:
+
+db-sg
+Next we’ll connect backend app
+
+Typical Node backend .env:
+
+DB_HOST=app-postgres-db.xxxxxx.ap-southeast-2.rds.amazonaws.com
+DB_PORT=5432
+DB_NAME=appdb
+DB_USER=postgres
+DB_PASSWORD=YourStrongPassword123!
+
+Then backend can connect.
+
+Later in Kubernetes we’ll move these into:
+
+Kubernetes Secret
+
+instead of plain env.
+
+Then after backend works
+
+We add:
+
+DynamoDB
+
+for:
+
+cart
+wishlist
+sessions
+S3
+
+for:
+
+product images
+CI/CD
+
+GitHub → Docker → ECR → EKS
+
+Monitoring
+
+CloudWatch / Prometheus / Grafana
+
+Please paste your RDS endpoint (you can hide part of it if you want), and tell me:
+
+Are you using:
+
+Node.js / Express
+Spring Boot
+Python
+
+for backend?
+
+Then I’ll guide the exact DB connection setup
+
+Specifically:
+
+Frontend → React
+Backend → Node.js + Express
+Database → PostgreSQL RDS
+Cart/session → DynamoDB (next)
+Containers → Docker
+Kubernetes → EKS
+CI/CD → GitHub Actions
+
+Example architecture:
+
+Internet
+   ↓
+AWS Load Balancer
+   ↓
+EKS (Node.js pods)
+   ↓
+ ┌───────────────┬──────────────┐
+ │               │              │
+PostgreSQL RDS   DynamoDB       S3
+Orders/Users     Cart           Images
+
+And inside Node.js we’ll typically use:
+
+Option A (easy + interview friendly)
+npm init -y
+npm install express pg dotenv
+express → API server
+pg → PostgreSQL driver
+dotenv → env variables
+
+Example:
+
+db.js
+
+const { Pool } = require("pg");
+
+const pool = new Pool({
+  host: process.env.DB_HOST,
+  port: process.env.DB_PORT,
+  database: process.env.DB_NAME,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+});
+
+module.exports = pool;
+
+server.js
+
+require("dotenv").config();
+const express = require("express");
+const pool = require("./db");
+
+const app = express();
+
+app.get("/", (req, res) => {
+  res.send("Backend running");
+});
+
+app.get("/health", async (req, res) => {
+  try {
+    await pool.query("SELECT NOW()");
+    res.send("DB connected");
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+});
+
+app.listen(3000, () => {
+  console.log("Server running on port 3000");
+});
+
+.env
+
+DB_HOST=your-rds-endpoint
+DB_PORT=5432
+DB_NAME=appdb
+DB_USER=postgres
+DB_PASSWORD=YourStrongPassword123!
+
+Then run:
+
+node server.js
+
+Test:
+
+curl localhost:3000
+
+Expected:
+
+Backend running
+
+Then:
+
+curl localhost:3000/health
+
+Expected:
+
+DB connected
+
+Your app is listening on port 5000, but you tested 3000.
+
+In server.js you have:
+
+const PORT = 5000;
+
+app.listen(PORT, () => {
+  console.log(`Backend running on ${PORT}`);
+});
+
+So this command:
+
+curl localhost:3000
+
+fails because nothing is running on 3000.
+
+Use:
+
+curl localhost:5000/health
+
+Expected:
+
+{"status":"Backend Running"}
+
+And test products:
+
+curl localhost:5000/products
+
+Orders:
+
+curl localhost:5000/orders
+One thing in package.json
+
+You showed:
+
+"main": "index.js",
+"scripts": {
+  "start": "node index.js",
+  "dev": "nodemon index.js"
+}
+
+But your file is:
+
+server.js
+
+That mismatch can break npm commands.
+
+Change package.json to:
+
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "ecommerce backend",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "type": "commonjs",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "pg": "^8.21.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}
+
+Then run:
+
+npm install
+npm start
+
+Expected:
+
+Backend running on 5000
+
+Then:
+
+curl localhost:5000/health
+
+If /health works but /products errors, paste:
+
+db.js
+.env (hide password)
+exact error
+
+and we’ll connect it to your RDS next.
+
+Your Node app is running:
+
+Backend running on 5000
+
+So the reason curl fails is most likely where you’re running it from.
+
+You mentioned earlier you’re on Windows using Git Bash.
+
+Try these checks in order:
+
+1. Keep server running in terminal 1
+
+Terminal 1:
+
+npm start
+
+Leave it running.
+
+You should see:
+
+Backend running on 5000
+
+Don’t close this terminal.
+
+2. Open a SECOND Git Bash terminal
+
+Then run:
+
+curl http://localhost:5000/health
+
+or on Windows sometimes:
+
+curl http://127.0.0.1:5000/health
+
+Expected:
+
+{"status":"Backend Running"}
+
+now it's working
+
+Since your RDS is in private subnets inside the VPC and your EKS cluster is already in the same VPC (created by Terraform), running the Node.js backend inside EKS is exactly what you want:
+
+Laptop → ECR → EKS pods → private RDS
+
+That avoids needing public DB access.
+
+A few adjustments so it works smoothly with what you already built:
+
+1. Build backend Docker image
+
+Inside:
+
+cd Ecommerce-Devops-Project/Ecommerce-app/backend
+
+Create Dockerfile
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY package*.json ./
+
+RUN npm install
+
+COPY . .
+
+EXPOSE 5000
+
+CMD ["node", "server.js"]
+
+Build:
+
+docker build -t ecommerce-backend .
+
+Check:
+
+docker images
+
+2. Push image to ECR
+
+Get account ID:
+
+aws sts get-caller-identity
+
+Example:
+
+"Account": "123456789012"
+
+Create repo if missing:
+
+aws ecr create-repository \
+  --repository-name ecommerce-backend \
+  --region ap-southeast-2
+
+Login:
+
+aws ecr get-login-password --region ap-southeast-2 \
+| docker login \
+--username AWS \
+--password-stdin 123456789012.dkr.ecr.ap-southeast-2.amazonaws.com
+
+Tag:
+
+docker tag ecommerce-backend:latest \
+123456789012.dkr.ecr.ap-southeast-2.amazonaws.com/ecommerce-backend:latest
+
+Push:
+
+docker push \
+123456789012.dkr.ecr.ap-southeast-2.amazonaws.com/ecommerce-backend:latest
+
+3. Confirm kubectl is connected
+
+$kubectl get nodes
+NAME                    STATUS   ROLES           AGE
+desktop-control-plane   Ready
+
+desktop-control-plane means you’re connected to a local Kubernetes cluster on your laptop (Docker Desktop / kind / minikube), not EKS in AWS.
+
+That’s why even if you deploy there, it still won’t reach private RDS.
+
+We need kubectl pointed to your AWS EKS cluster.
+
+You ran:
+
+aws eks update-kubeconfig \
+  --region ap-southeast-2 \
+  --name YOUR_CLUSTER_NAME
+
+YOUR_CLUSTER_NAME was just a placeholder.
+
+Your real cluster name is:
+
+Ecommerce-cluster
+
+Run this exact command:
+
+aws eks update-kubeconfig \
+  --region ap-southeast-2 \
+  --name Ecommerce-cluster
+
+Expected:
+
+Added new context arn:aws:eks:ap-southeast-2:...:cluster/Ecommerce-cluster to C:\Users\Admin\.kube\config
+
+Then switch context:
+
+kubectl config use-context \
+arn:aws:eks:ap-southeast-2:YOUR_ACCOUNT_ID:cluster/Ecommerce-cluster
+
+If that feels annoying, easier:
+
+List contexts:
+
+kubectl config get-contexts
+
+Then copy the exact EKS context name and switch:
+
+Example:
+
+kubectl config use-context DevOps_User@Ecommerce-cluster.ap-southeast-2.eksctl.io
+
+Then verify:
+
+kubectl get nodes
+
+You should see AWS worker nodes like:
+
+ip-10-0-1-45.ap-southeast-2.compute.internal   Ready
+ip-10-0-2-12.ap-southeast-2.compute.internal   Ready
+
+Once that works, we’ll deploy backend to EKS and it can talk to private RDS.
+
+Yes—good catch. This is exactly the Terraform change you want.
+
+Because your backend pods run in EKS and RDS is private, RDS must allow traffic from the EKS worker node security group on port 5432.
+
+Here’s how to do it cleanly.
+
+1. Open your Terraform project
+
+From Git Bash:
+
+cd ~/Ecommerce-Devops-Project
+
+Find your RDS/security group files:
+
+Common names:
+
+ls
+
+You may have:
+
+main.tf
+rds.tf
+eks.tf
+security-groups.tf
+variables.tf
+2. Find existing RDS security group
+
+You probably already have something like:
+
+resource "aws_security_group" "rds_sg" {
+  name   = "rds-sg"
+  vpc_id = aws_vpc.main.id
+}
+
+and RDS attached:
+
+resource "aws_db_instance" "postgres" {
+  ...
+  vpc_security_group_ids = [aws_security_group.rds_sg.id]
+}
+3. Find EKS node security group
+
+Depending on how you created EKS.
+
+You may have:
+
+resource "aws_eks_node_group" "nodes" {
+
+or module output.
+
+Sometimes node SG:
+
+aws_security_group.eks_nodes.id
+
+Example:
+
+resource "aws_security_group" "eks_nodes" {
+  name   = "eks-node-sg"
+  vpc_id = aws_vpc.main.id
+}
+4. Add inbound rule to RDS
+
+Best practice = separate SG rule resource.
+
+Add:
+
+resource "aws_security_group_rule" "allow_eks_to_rds" {
+  type                     = "ingress"
+
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+
+  security_group_id        = aws_security_group.rds_sg.id
+
+  source_security_group_id = aws_security_group.eks_nodes.id
+
+  description              = "Allow PostgreSQL from EKS worker nodes"
+}
+
+Meaning:
+
+EKS worker node SG
+        ↓
+RDS SG
+        ↓
+5432 allowed
+
+That’s ideal.
+
+If you used EKS module
+
+Sometimes SG comes from module output:
+
+Example:
+
+module "eks" {
+  ...
+}
+
+Then use:
+
+resource "aws_security_group_rule" "allow_eks_to_rds" {
+  type                     = "ingress"
+
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+
+  security_group_id        = aws_security_group.rds_sg.id
+
+  source_security_group_id = module.eks.node_security_group_id
+}
+5. Validate
+
+Run:
+
+terraform plan
+
+Expected:
+
++ aws_security_group_rule.allow_eks_to_rds
+
+Then:
+
+terraform apply
+
+Type:
+
+yes
+6. Verify
+
+After apply:
+
+AWS console:
+
+RDS → Connectivity & security
+
+Inbound should show:
+
+TCP 5432
+Source = EKS node SG
+
+Then pods can connect.
+
+4. Important: RDS security group
+
+This is the one thing many people miss.
+
+Because RDS is private, SG must allow traffic from EKS worker nodes.
+
+Terraform likely created:
+
+EKS node security group
+RDS security group
+
+RDS inbound should allow:
+
+PostgreSQL 5432
+Source = EKS node security group
+
+Check in AWS console:
+
+RDS → database → connectivity → security groups
+
+or Terraform.
+
+Without this pods can’t connect.
+
+5. Better than hardcoding password → Kubernetes Secret
+
+Instead of putting password in YAML.
+
+Create:
+
+kubectl create secret generic db-secret \
+  --from-literal=DB_PASSWORD='YourStrongPassword123!'
+
+6. Backend deployment
+
+backend-deployment.yaml
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ecommerce-backend
+
+spec:
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: ecommerce-backend
+
+  template:
+    metadata:
+      labels:
+        app: ecommerce-backend
+
+    spec:
+      containers:
+        - name: backend
+          image: 123456789012.dkr.ecr.ap-southeast-2.amazonaws.com/ecommerce-backend:latest
+
+          ports:
+            - containerPort: 5000
+
+          env:
+            - name: DB_HOST
+              value: app-postgres-db.ckoyc6uiyhte.ap-southeast-2.rds.amazonaws.com
+
+            - name: DB_PORT
+              value: "5432"
+
+            - name: DB_USER
+              value: postgres
+
+            - name: DB_NAME
+              value: appdb
+
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-secret
+                  key: DB_PASSWORD
+
+Apply:
+
+kubectl apply -f backend-deployment.yaml
+
+7. Service
+
+backend-service.yaml
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: ecommerce-backend-service
+
+spec:
+  selector:
+    app: ecommerce-backend
+
+  ports:
+    - port: 5000
+      targetPort: 5000
+
+  type: ClusterIP
+
+Apply:
+
+kubectl apply -f backend-service.yaml
+8. Verify pod
+
+Pods:
+
+kubectl get pods
+
+Logs:
+
+kubectl logs deployment/ecommerce-backend
+
+Expected:
+
+Backend running on 5000
+Connected to PostgreSQL
+9. Test DB from pod
+
+Shell:
+
+kubectl exec -it deployment/ecommerce-backend -- sh
+
+Inside:
+
+apk add curl
+
+Health:
+
+curl localhost:5000/health
+
+DB DNS test:
+
+nslookup app-postgres-db.ckoyc6uiyhte.ap-southeast-2.rds.amazonaws.com
+10. ALB / ingress later
+
+Then:
+
+/
+→ frontend
+
+/api
+→ backend
