@@ -531,6 +531,7 @@ resource "aws_security_group" "eks_nodes" {
   name   = "eks-node-sg"
   vpc_id = aws_vpc.main.id
 }
+
 4. Add inbound rule to RDS
 
 Best practice = separate SG rule resource.
@@ -584,6 +585,7 @@ resource "aws_security_group_rule" "allow_eks_to_rds" {
 
   source_security_group_id = module.eks.node_security_group_id
 }
+
 5. Validate
 
 Run:
@@ -601,6 +603,7 @@ terraform apply
 Type:
 
 yes
+
 6. Verify
 
 After apply:
@@ -723,6 +726,7 @@ spec:
 Apply:
 
 kubectl apply -f backend-service.yaml
+
 8. Verify pod
 
 Pods:
@@ -735,31 +739,50 @@ kubectl logs deployment/ecommerce-backend
 
 Expected:
 
+Found 2 pods, using pod/ecommerce-backend-9bf86c6c4-m4ccx
+◇ injected env (0) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
 Backend running on 5000
-Connected to PostgreSQL
+
 9. Test DB from pod
 
 Shell:
 
-kubectl exec -it deployment/ecommerce-backend -- sh
+kubectl exec -it ecommerce-backend-9bf86c6c4-m4ccx -- sh
 
 Inside:
 
-apk add curl
+/app # apk add curl
+OK: 15.9 MiB in 27 packages
 
-Health:
+/app # apk add bind-tools
+OK: 22.9 MiB in 41 packages
 
-curl localhost:5000/health
 
-DB DNS test:
+Test DNS:
 
-nslookup app-postgres-db.ckoyc6uiyhte.ap-southeast-2.rds.amazonaws.com
-10. ALB / ingress later
+/app # nslookup app-postgres-db.ckoyc6uiyhte.ap-southeast-2.rds.amazonaws.com
 
-Then:
+Server:         172.20.0.10
+Address:        172.20.0.10#53
 
-/
-→ frontend
+Non-authoritative answer:
+Name:   app-postgres-db.ckoyc6uiyhte.ap-southeast-2.rds.amazonaws.com
+Address: 10.0.3.199
 
-/api
-→ backend
+
+Test backend:
+
+/app # curl localhost:5000/health
+{"status":"Backend Running"}/app #
+
+If backend starts and DB connection succeeds → done.
+
+/app # psql \ 
+> -h app-postgres-db.ckoyc6uiyhte.ap-southeast-2.rds.amazonaws.com \ 
+> -U postgres \ 
+> -d appdb Password for user postgres: YourStrongPassword123!
+SSL connection (protocol: TLSv1.2, cipher: ECDHE-RSA-AES256-GCM-SHA384, compression: off, ALPN: none)
+Type "help" for help.
+
+appdb=>
+
