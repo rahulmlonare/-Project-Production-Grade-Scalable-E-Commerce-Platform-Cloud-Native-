@@ -786,3 +786,257 @@ Type "help" for help.
 
 appdb=>
 
+EKS ↔ RDS connectivity is working correctly.
+
+Here’s what each check tells us:
+
+✅ Pods are healthy
+
+1/1 Running
+
+Your backend containers are up.
+
+DNS resolves RDS hostname
+
+nslookup app-postgres-db...
+Address: 10.0.3.199
+
+That means:
+
+pod can reach Kubernetes DNS
+RDS private hostname resolves
+VPC networking is correct
+
+✅ Backend health endpoint works
+
+curl localhost:5000/health
+{"status":"Backend Running"}
+
+Node.js is listening on port 5000 inside pod.
+
+✅ Direct PostgreSQL login works
+
+psql -h app-postgres-db...
+
+and you reached:
+
+appdb=>
+
+That confirms:
+
+security group rule is correct
+username/password works
+database exists
+SSL works
+pod can connect to private RDS
+
+That’s the hard part done.
+
+Only remaining issue
+
+This:
+
+node -e "fetch('http://localhost:5000/products')..."
+
+returned:
+
+Server Error
+
+That means:
+
+backend route exists
+Express received request
+DB query inside /products failed
+
+1) DB connectivity = confirmed ✅
+
+You already connected with:
+
+appdb=>
+
+So RDS + network + credentials are all good.
+
+Since direct psql works, likely one of these:
+
+1. table missing
+
+Inside psql run:
+
+appdb-> \dt
+Did not find any tables.
+
+2) Main issue: there are no tables
+
+You ran:
+
+\dt
+
+and got:
+
+Did not find any tables.
+That explains your API failure:
+
+3) Small note on the node -e fetch(...) error
+
+This:
+
+/app # node -e "fetch('http://localhost:5000/products')"
+
+is expected because your laptop doesn’t have backend on port 5000.
+
+That’s not a DB problem.
+
+Fix now: create products table
+
+Inside psql (appdb=>) run:
+
+CREATE TABLE products (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255),
+    price NUMERIC
+);
+
+Then add sample rows:
+INSERT INTO products (name, price)
+VALUES
+('Laptop', 50000),
+('Mouse', 700),
+('Keyboard', 1500);
+
+Check:
+
+SELECT * FROM products;
+
+Expected:
+
+ id |  name   | price
+----+---------+-------
+ 1  | Laptop  | 50000
+
+Then test backend again
+
+Inside pod:
+
+kubectl exec -it ecommerce-backend-9bf86c6c4-gc99b -- sh
+
+Run:
+
+wget -qO- http://localhost:5000/products
+
+Expected JSON:
+
+[
+  {"id":1,"name":"Laptop","price":"50000"}
+]
+If still failing
+
+Check logs:
+
+kubectl logs deployment/ecommerce-backend --tail=50
+
+Paste output here.
+
+After checking error
+
+our backend can reach RDS, but Node/Postgres is trying to connect without SSL, and RDS is rejecting it.
+
+This line is the key:
+
+no pg_hba.conf entry for host "10.0.1.49", user "postgres", database "appdb", no encryption
+
+Meaning:
+
+✅ EKS pod → RDS network works
+✅ DNS works
+✅ security group likely correct
+❌ app connection is not using SSL/TLS
+
+Fix in backend code
+
+Open your backend file (probably server.js).
+
+Look for:
+
+const { Pool } = require("pg");
+
+const pool = new Pool({
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+  port: 5432
+});
+
+Change to:
+
+const { Pool } = require("pg");
+
+const pool = new Pool({
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+  port: 5432,
+  ssl: {
+    rejectUnauthorized: false
+  }
+});
+
+That tells Node’s pg client:
+
+connect with TLS
+
+and ignore cert verification (common for RDS demos/projects).
+
+Then rebuild + push image
+
+From Git Bash:
+
+docker build -t ecommerce-backend .
+
+Tag:
+
+docker tag 61669332226a \
+618307388993.dkr.ecr.ap-southeast-2.amazonaws.com/ecommerce-backend:latest
+
+Login to aws ECR:
+
+aws ecr get-login-password --region ap-southeast-2 | \
+docker login --username AWS --password-stdin \
+618307388993.dkr.ecr.ap-southeast-2.amazonaws.com
+Login Succeeded
+
+Push image to ECR :
+
+ docker push 618307388993.dkr.ecr.ap-southeast-2.amazonaws.com/ecommerce-backend:latest
+
+Restart deployment
+kubectl rollout restart deployment ecommerce-backend
+
+Watch:
+
+kubectl get pods -w
+ecommerce-backend-68f5c56fcb-2z6n5   1/1     Running   0          4m55s
+ecommerce-backend-68f5c56fcb-kfrvx   1/1     Running   0          4m52s
+
+
+After new pods Running:
+
+Check logs:
+
+kubectl logs deployment/ecommerce-backend --tail=50
+
+Test:
+
+kubectl exec -it deployment/ecommerce-backend -- sh
+
+Inside:
+
+wget -qO- http://localhost:5000/products
+
+Expected:
+
+[
+ {"id":1,"name":"Laptop","price":"50000"}
+]
+
