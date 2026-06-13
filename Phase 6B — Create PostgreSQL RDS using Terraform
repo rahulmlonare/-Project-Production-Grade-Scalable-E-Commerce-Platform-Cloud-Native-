@@ -16,7 +16,7 @@ Open:
 nano variables.tf
 
 variable "db_name" {
-  default = "ecommerce"
+  default = "appdb"
 }
 
 variable "db_username" {
