@@ -854,189 +854,226 @@ You already connected with:
 
 appdb=>
 
-So RDS + network + credentials are all good.
-
-Since direct psql works, likely one of these:
-
-1. table missing
-
-Inside psql run:
-
-appdb-> \dt
-Did not find any tables.
-
-2) Main issue: there are no tables
-
-You ran:
+Run:
 
 \dt
 
-and got:
+This will list all tables.
 
-Did not find any tables.
-That explains your API failure:
+I expect you'll see:
 
-3) Small note on the node -e fetch(...) error
+Did not find any relations.
 
-This:
+or no products table.
 
-/app # node -e "fetch('http://localhost:5000/products')"
-
-is expected because your laptop doesn’t have backend on port 5000.
-
-That’s not a DB problem.
-
-Fix now: create products table
-
-Inside psql (appdb=>) run:
-
-CREATE TABLE products (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(255),
-    price NUMERIC
-);
-
-Then add sample rows:
-INSERT INTO products (name, price)
-VALUES
-('Laptop', 50000),
-('Mouse', 700),
-('Keyboard', 1500);
-
-Check:
-
-SELECT * FROM products;
-
-Expected:
-
- id |  name   | price
-----+---------+-------
- 1  | Laptop  | 50000
-
-Then test backend again
-
-Inside pod:
-
-kubectl exec -it ecommerce-backend-9bf86c6c4-gc99b -- sh
+Create the products table
 
 Run:
 
-wget -qO- http://localhost:5000/products
+appdb=> CREATE TABLE products (
+appdb(>     id SERIAL PRIMARY KEY,
+appdb(>     name VARCHAR(255),
+appdb(>     price NUMERIC(10,2)
 
-Expected JSON:
+Verify:
+appdb(> );\dt
 
-[
-  {"id":1,"name":"Laptop","price":"50000"}
-]
-If still failing
+CREATE TABLE
+            List of tables
+ Schema |   Name   | Type  |  Owner
+--------+----------+-------+----------
+ public | products | table | postgres
+(1 row)
 
-Check logs:
+Now insert sample data:
 
-kubectl logs deployment/ecommerce-backend --tail=50
+appdb=> INSERT INTO products (name, price)
+appdb-> VALUES
+appdb-> ('Laptop', 50000),
+appdb-> ('Mobile', 20000),
+appdb-> ('Keyboard', 1000);
+INSERT 0 3
 
-Paste output here.
+Check:
 
-After checking error
+appdb=> SELECT * FROM products;
+ id |   name   |  price
+----+----------+----------
+  1 | Laptop   | 50000.00
+  2 | Mobile   | 20000.00
+  3 | Keyboard |  1000.00
+(3 rows)
 
-our backend can reach RDS, but Node/Postgres is trying to connect without SSL, and RDS is rejecting it.
+Exit:
 
-This line is the key:
+\q
 
-no pg_hba.conf entry for host "10.0.1.49", user "postgres", database "appdb", no encryption
+Test the API again
 
-Meaning:
+From inside the pod:
 
-✅ EKS pod → RDS network works
-✅ DNS works
-✅ security group likely correct
-❌ app connection is not using SSL/TLS
+/app # wget -qO- http://localhost:5000/products
 
-Fix in backend code
+[{"id":1,"name":"Laptop","price":"50000.00"},{"id":2,"name":"Mobile","price":"20000.00"},{"id":3,"name":"Keyboard","price":"1000.00"}]/app #
 
-Open your backend file (probably server.js).
+or from your laptop:
 
-Look for:
-
-const { Pool } = require("pg");
-
-const pool = new Pool({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-  port: 5432
-});
-
-Change to:
-
-const { Pool } = require("pg");
-
-const pool = new Pool({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-  port: 5432,
-  ssl: {
-    rejectUnauthorized: false
-  }
-});
-
-That tells Node’s pg client:
-
-connect with TLS
-
-and ignore cert verification (common for RDS demos/projects).
-
-Then rebuild + push image
-
-From Git Bash:
-
-docker build -t ecommerce-backend .
-
-Tag:
-
-docker tag 61669332226a \
-618307388993.dkr.ecr.ap-southeast-2.amazonaws.com/ecommerce-backend:latest
-
-Login to aws ECR:
-
-aws ecr get-login-password --region ap-southeast-2 | \
-docker login --username AWS --password-stdin \
-618307388993.dkr.ecr.ap-southeast-2.amazonaws.com
-Login Succeeded
-
-Push image to ECR :
-
- docker push 618307388993.dkr.ecr.ap-southeast-2.amazonaws.com/ecommerce-backend:latest
-
-Restart deployment
-kubectl rollout restart deployment ecommerce-backend
-
-Watch:
-
-kubectl get pods -w
-ecommerce-backend-68f5c56fcb-2z6n5   1/1     Running   0          4m55s
-ecommerce-backend-68f5c56fcb-kfrvx   1/1     Running   0          4m52s
-
-
-After new pods Running:
-
-Check logs:
-
-kubectl logs deployment/ecommerce-backend --tail=50
-
-Test:
-
-kubectl exec -it deployment/ecommerce-backend -- sh
-
-Inside:
-
-wget -qO- http://localhost:5000/products
+curl http://<your-load-balancer-dns>/products
 
 Expected:
 
 [
- {"id":1,"name":"Laptop","price":"50000"}
+  {
+    "id":1,
+    "name":"Laptop",
+    "price":"50000.00"
+  },
+  {
+    "id":2,
+    "name":"Mobile",
+    "price":"20000.00"
+  }
 ]
+
+Or open it in a browser:
+
+http://a6fe8e95af8f847b0afd78d0c9821e3e-247807167.ap-southeast-2.elb.amazonaws.com/products
+
+You can get the Load Balancer DNS name from Kubernetes.
+
+Run:
+
+kubectl get svc
+
+You should see something like:
+
+NAME                TYPE           CLUSTER-IP      EXTERNAL-IP
+ecommerce-backend   LoadBalancer   10.100.10.20    a6fe8e95af8f847b0afd78d0c9821e3e-247807167.ap-southeast-2.elb.ama
+
+Your service is currently:
+
+Type: ClusterIP
+
+A ClusterIP service is only accessible inside the Kubernetes cluster.
+
+That's why:
+
+kubectl get svc
+
+shows:
+
+EXTERNAL-IP   <none>
+
+What this means
+
+Current traffic flow:
+
+Internet
+   ❌
+ClusterIP Service
+   ↓
+Backend Pods
+
+Only pods inside EKS can access:
+
+http://ecommerce-backend-service:5000
+
+If you want public access
+
+Change the Service type to:
+
+type: LoadBalancer
+
+Example:
+
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: ecommerce-backend-service
+
+spec:
+  selector:
+    app: ecommerce-backend
+
+  ports:
+  - port: 5000
+    targetPort: 5000
+
+  type: LoadBalancer
+
+Apply:
+
+kubectl apply -f service.yaml
+
+Then check
+kubectl get svc
+
+Initially:
+
+EXTERNAL-IP   <pending>
+
+Wait 1–3 minutes.
+
+Then you'll get something like:
+
+EXTERNAL-IP
+abcd1234.ap-southeast-2.elb.amazonaws.com
+
+AWS will automatically create:
+
+Network Load Balancer (or ELB)
+Target groups
+Listeners
+Before exposing it publicly
+
+Fix the database issue first.
+
+Your logs show:
+
+relation "products" does not exist
+
+This means:
+
+SELECT * FROM products;
+
+is failing because the table doesn't exist.
+
+Check inside PostgreSQL:
+
+\dt
+
+If no tables appear, create them:
+
+CREATE TABLE products (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(255),
+  price NUMERIC(10,2)
+);
+
+Insert sample data:
+
+INSERT INTO products (name, price)
+VALUES ('Laptop',50000),
+       ('Phone',20000);
+For your DevOps project
+
+I would recommend this architecture:
+
+Internet
+    ↓
+AWS Load Balancer
+    ↓
+Kubernetes Service (LoadBalancer)
+    ↓
+Backend Pods
+    ↓
+RDS PostgreSQL
+
+Can you show me your current service.yaml file? I can modify it so AWS creates a Load Balancer automatically.
+
+
+
+
+Inside psql run:
 
