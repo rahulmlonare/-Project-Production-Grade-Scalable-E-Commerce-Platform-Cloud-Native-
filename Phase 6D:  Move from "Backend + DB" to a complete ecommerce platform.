@@ -1,0 +1,106 @@
+Phase 4 (Next)
+
+Now we move from "Backend + DB" to a complete ecommerce platform.
+
+Step 1 — Create Orders Table
+
+Inside PostgreSQL:
+
+CREATE TABLE orders (
+    id SERIAL PRIMARY KEY,
+    product_id INT,
+    quantity INT,
+    order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+Insert sample order:
+
+INSERT INTO orders (product_id, quantity)
+VALUES (1,2);
+
+Verify:
+
+SELECT * FROM orders;
+Step 2 — Add Order APIs
+
+Current:
+
+GET /products
+
+Add:
+
+GET /orders
+POST /orders
+
+Example:
+
+app.post("/orders", async (req, res) => {
+  const { product_id, quantity } = req.body;
+
+  const result = await pool.query(
+    "INSERT INTO orders(product_id, quantity) VALUES($1,$2) RETURNING *",
+    [product_id, quantity]
+  );
+
+  res.json(result.rows[0]);
+});
+Step 3 — DynamoDB
+
+Remember our architecture:
+
+Products & Orders  -> PostgreSQL
+Cart              -> DynamoDB
+Images            -> S3
+
+Next we'll create DynamoDB using Terraform:
+
+resource "aws_dynamodb_table" "cart" {
+  name         = "shopping-cart"
+  billing_mode = "PAY_PER_REQUEST"
+
+  hash_key = "userId"
+
+  attribute {
+    name = "userId"
+    type = "S"
+  }
+}
+
+Then:
+
+POST /cart
+GET /cart
+
+will use DynamoDB.
+
+Step 4 — Frontend
+
+We'll create:
+
+React Frontend
+
+Pages:
+
+Home
+Products
+Cart
+Orders
+Step 5 — ALB Ingress
+
+Production routing:
+
+ALB
+ ├── /
+ │     Frontend
+ │
+ └── /api
+       Backend
+Step 6 — CI/CD
+
+GitHub → Jenkins/GitHub Actions → Docker → ECR → EKS
+
+This is usually the point where interviewers start asking architecture questions, and by then you'll have a complete 3-tier application.
+
+My recommendation
+
+Before moving to DynamoDB or Frontend, let's first complete the Orders API so your PostgreSQL-backed ecommerce backend has:
