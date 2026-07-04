@@ -281,3 +281,50 @@ const PORT = 5000;
 app.listen(PORT, () => {
   console.log(`Backend running on ${PORT}`);
 });
+
+
+$kubectl exec -it ecommerce-backend-6874499c75-g5l6m -- sh
+
+/app # psql \
+> -h app-postgres-db.ckoyc6uiyhte.ap-southeast-2.rds.amazonaws.com \
+> -U postgres \
+> -d appdb
+
+appdb=>
+
+First, exit PostgreSQL
+
+At the appdb=> prompt, type:
+
+\q
+
+You'll return to the shell prompt, for example:
+
+/app # curl -X POST http://localhost:5000/orders \
+> -H "Content-Type: application/json" \
+> -d '{
+>   "product_id": 2,
+>   "quantity": 1,
+>   "customer_name": "Rahul"
+> }
+
+/app # psql \
+> -h app-postgres-db.ckoyc6uiyhte.ap-southeast-2.rds.amazonaws.com \
+> -U postgres \
+> -d appdb
+Password for user postgres:
+
+
+appdb=> SELECT * FROM orders;
+
+id | product_id | quantity | customer_name |         order_date
+----+------------+----------+---------------+----------------------------
+  1 |          1 |        2 | Rahul         | 2026-07-04 15:24:36.243401
+(1 row)
+
+You should see the newly inserted order.
+
+Backend inserts into PostgreSQL.
+
+This demonstrates CRUD operations, which interviewers almost always ask about.
+
