@@ -714,22 +714,20 @@ kubectl apply -f backend-deployment.yaml
 
 7. Service
 
-backend-service.yaml
+nano backend-service.yaml
 
 apiVersion: v1
 kind: Service
 metadata:
   name: ecommerce-backend-service
-
 spec:
+  type: LoadBalancer
   selector:
     app: ecommerce-backend
-
   ports:
-    - port: 5000
+    - port: 80
       targetPort: 5000
 
-  type: LoadBalancer
 
 Apply:
 
