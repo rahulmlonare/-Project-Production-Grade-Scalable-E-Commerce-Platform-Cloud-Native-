@@ -104,3 +104,180 @@ This is usually the point where interviewers start asking architecture questions
 My recommendation
 
 Before moving to DynamoDB or Frontend, let's first complete the Orders API so your PostgreSQL-backed ecommerce backend has:
+
+***** Step 1 (Next Step) ******
+Complete Backend APIs
+
+Currently you have
+
+GET /health
+GET /products
+
+A real ecommerce backend should have APIs like this.
+
+GET     /products
+GET     /products/:id
+
+POST    /orders
+GET     /orders
+
+POST    /cart
+GET     /cart
+
+POST    /login
+POST    /register
+
+***** Database Tables *****
+
+Currently
+
+products
+
+Next we'll create
+
+orders
+users
+
+Later
+
+payments
+inventory
+
+*** Create Orders Table ***
+
+Connect to PostgreSQL.
+
+$ kubectl get pods
+NAME                                 READY   STATUS    RESTARTS   AGE
+ecommerce-backend-6874499c75-g5l6m   1/1     Running   0          4h47m
+ecommerce-backend-6874499c75-pgmvx   1/1     Running   0          4h47m
+
+$ kubectl exec -it ecommerce-backend-6874499c75-g5l6m -- sh
+/app #  psql \
+> -h app-postgres-db.ckoyc6uiyhte.ap-southeast-2.rds.amazonaws.com \
+> -U postgres \
+> -d appdb
+Password for user postgres: YourStrongPassword123!
+
+appdb=> CREATE TABLE orders (
+    id SERIAL PRIMARY KEY,
+    product_id INT NOT NULL,
+    quantity INT NOT NULL,
+    customer_name VARCHAR(100),
+    order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_product
+        FOREIGN KEY(product_id)
+        REFERENCES products(id)
+);
+
+appdb(> );INSERT INTO orders(product_id,quantity,customer_name)
+CREATE TABLE
+appdb-> VALUES
+appdb-> (1,2,'Rahul');
+
+INSERT 0 1
+
+appdb=> SELECT * FROM orders;
+
+ id | product_id | quantity | customer_name |         order_date
+----+------------+----------+---------------+----------------------------
+  1 |          1 |        2 | Rahul         | 2026-07-04 15:24:36.243401
+(1 row)
+
+appdb=>
+
+
+**** Modify server.js **** 
+
+Current
+
+GET /products
+
+We'll add
+
+GET /orders
+app.get("/orders", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM orders ORDER BY id"
+    );
+
+    res.json(result.rows);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Server Error");
+  }
+});
+
+Restart deployment
+
+kubectl rollout restart deployment ecommerce-backend
+
+Test
+
+http://<ALB-DNS>/orders
+
+Browser:  http://a7caabbdd3b17426498ad0863b24c192-1414738606.ap-southeast-2.elb.amazonaws.com/orders
+
+o/p:  [{"id":1,"product_id":1,"quantity":2,"customer_name":"Rahul","order_date":"2026-07-04T15:24:36.243Z"}]
+
+**** Add POST /orders *** 
+
+Next API
+
+POST /orders
+
+Body
+
+{
+    "product_id":2,
+    "quantity":1,
+    "customer_name":"Rahul"
+}
+
+Backend inserts into PostgreSQL.
+
+This demonstrates CRUD operations, which interviewers almost always ask about.
+
+Your server.js should look like this:
+
+/* orders */
+app.get("/orders", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM orders ORDER BY id"
+    );
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Server Error");
+  }
+});
+
+/* create order */
+app.post("/orders", async (req, res) => {
+  try {
+    const { product_id, quantity, customer_name } = req.body;
+
+    const result = await pool.query(
+      `INSERT INTO orders (product_id, quantity, customer_name)
+       VALUES ($1, $2, $3)
+       RETURNING *`,
+      [product_id, quantity, customer_name]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Server Error");
+  }
+});
+
+const PORT = 5000;
+
+app.listen(PORT, () => {
+  console.log(`Backend running on ${PORT}`);
+});
