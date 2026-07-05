@@ -1,0 +1,330 @@
+So far, we have built the Infrastructure and the Backend. Now we'll build the React Frontend and connect it to the backend running on EKS through the ALB.
+
+Current Architecture
+                        Internet
+                            │
+                            ▼
+                   AWS Application Load Balancer
+                            │
+              ┌─────────────┴─────────────┐
+              ▼                           ▼
+        React Frontend              Node.js Backend
+        (Next Phase)               (Running on EKS)
+                                          │
+                                          ▼
+                               PostgreSQL RDS (Private)
+
+
+Step (1): Frontend Development (Industry Level)
+
+Unlike a simple React app, we'll build a frontend that looks like a real ecommerce website.
+
+Final UI
+---------------------------------------------------------
+ Logo         Search Bar                 Cart    Login
+---------------------------------------------------------
+
+Categories
+
+---------------------------------------------------------
+Products
+
+Laptop
+Image
+Price
+Add to Cart
+
+Mobile
+Image
+Price
+Add to Cart
+
+Keyboard
+Image
+Price
+Add to Cart
+---------------------------------------------------------
+
+Footer
+
+Later we'll add:
+
+Login
+Registration
+Cart
+Orders
+Checkout
+Admin Panel
+
+Project Structure
+
+Create a new folder alongside your backend.
+
+Ecommerce-Devops-Project
+│
+├── backend
+│
+├── frontend
+│
+└── terraform
+
+Go to your project root:
+
+cd ~/Ecommerce-Devops-Project
+
+Since we are building an interview-quality project, we'll use Vite instead of Create React App because it is the modern standard.
+
+npm create vite@latest frontend -- --template react
+
+Go to your project root:
+
+$ cd ~/Ecommerce-Devops-Project
+$ cd Ecommerce-app/
+$ rm -rf frontend
+$ npm create vite@latest frontend -- --template react
+
+Go inside:
+
+cd frontend
+
+Install dependencies:
+
+npm install
+
+Install additional packages:
+
+npm install axios react-router-dom
+Why these?
+axios → Call backend APIs
+react-router-dom → Multi-page routing (Home, Cart, Orders, etc.)
+Verify React
+
+Start it:
+
+npm run dev
+
+Expected output:
+
+Local:
+
+http://localhost:5173
+
+Open in browser:
+
+http://localhost:5173
+
+You should see the Vite React welcome page.
+
+Clean Project
+
+Delete unnecessary files.
+
+$ cd src/
+
+$ ls
+App.css  App.jsx  assets/  index.css  main.jsx
+
+$ rm -rf App.css index.css assets/
+
+$ ls
+App.jsx  main.jsx
+
+*** Create this structure: *** 
+
+src
+│
+├── api
+│     api.js
+│
+├── components
+│     Navbar.jsx
+│     ProductCard.jsx
+│
+├── pages
+│     Home.jsx
+│     Cart.jsx
+│     Orders.jsx
+│
+├── App.jsx
+│
+└── main.jsx
+
+src $ mkdir -p api
+     mkdie -p components
+      mkdir -p pages
+
+$ cd api/
+
+$ touch api.js
+
+
+$ cd components/
+
+$ touch Navbar.jsx
+$ touch ProductCard.jsx
+
+$ cd pages/
+
+$ touch Home.jsx
+$ touch Cart.jsx
+$ touch Orders.jsx
+
+This is much closer to how React projects are organized in companies.
+
+Step (2): Configure Backend URL
+
+$ nano api.js
+
+import axios from "axios";
+
+const api = axios.create({
+    baseURL: "a7caabbdd3b17426498ad0863b24c192-1414738606.ap-southeast-2.elb.amazonaws.com"
+});
+
+export default api;
+
+
+For now, replace <YOUR-ALB-DNS> with the DNS name of the ALB that exposes your backend.
+
+Later we'll improve this by using environment variables (.env) so the URL isn't hardcoded.
+
+**** Create Navbar ****
+
+src/components/Navbar.jsx
+
+function Navbar() {
+  return (
+    <nav style={{
+      background:"#232f3e",
+      color:"white",
+      padding:"15px",
+      fontSize:"24px"
+    }}>
+      Ecommerce Store
+    </nav>
+  );
+}
+
+export default Navbar;
+
+***** Create Product Card ******
+
+components $ nano ProductCard.jsx
+
+function ProductCard({product}) {
+
+    return (
+        <div style={{
+            border:"1px solid #ddd",
+            padding:"20px",
+            margin:"15px",
+            width:"250px"
+        }}>
+
+            <h2>{product.name}</h2>
+
+            <p>₹ {product.price}</p>
+
+            <button>Add To Cart</button>
+
+        </div>
+    )
+
+}
+
+export default ProductCard;
+
+
+**** Create Home Page ******
+
+src/pages $ nano Home.jsx
+
+import { useEffect, useState } from "react";
+import api from "../api/api";
+import ProductCard from "../components/ProductCard";
+
+function Home() {
+
+    const [products,setProducts]=useState([]);
+
+    useEffect(()=>{
+
+        api.get("/products")
+            .then(res=>setProducts(res.data))
+            .catch(console.error);
+
+    },[]);
+
+    return(
+
+        <div>
+
+            <h1>Products</h1>
+
+***** Update App ******
+
+src/App.jsx $ nano App.jsx
+
+import Navbar from "./components/Navbar";
+import Home from "./pages/Home";
+
+function App() {
+  return (
+    <>
+      <Navbar />
+      <Home />
+    </>
+  );
+}
+
+export default App;
+
+$ nano main.jsx
+
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import App from './App.jsx'
+
+createRoot(document.getElementById('root')).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+)
+
+
+******** Test the Frontend ***********
+
+Run:
+
+npm run dev
+
+Open:
+
+http://localhost:5173
+
+It's giving an error
+
+Missing index.css file in SRC
+
+$ cd src/
+$ touch index.css
+$ nano index.css
+
+body {
+  margin: 0;
+  font-family: Arial, Helvetica, sans-serif;
+  background: #f5f5f5;
+}
+
+Save it.
+
+Step 3: Restart Vite
+
+Stop the server:
+
+Ctrl + C
+
+Start it again:
+
+npm run dev
+
