@@ -328,3 +328,48 @@ Backend inserts into PostgreSQL.
 
 This demonstrates CRUD operations, which interviewers almost always ask about.
 
+Why are we doing this before the frontend?
+
+Because in industry the backend team usually exposes stable APIs before the frontend team integrates with them.
+It also lets us test everything with tools like curl or Postman before introducing a UI.
+
+After completing the Orders API
+
+We'll move to Phase 5 – Step 2: React Frontend.
+
+We'll build an industry-style frontend with:
+
+Home
+Products
+Cart
+Orders
+Checkout
+
+It will call your backend through the ALB:
+
+Browser
+      │
+      ▼
+React Frontend
+      │
+      ▼
+AWS ALB
+      │
+      ▼
+EKS Backend Pods
+      │
+      ▼
+PostgreSQL RDS
+
+After we complete the backend and frontend, we'll come back and add Terraform for:
+
+DynamoDB
+S3 bucket
+IAM roles and policies
+CloudWatch Log Groups
+SNS
+Lambda
+Route 53
+ACM
+(Optionally) an Application Load Balancer using the AWS Load Balancer Controller
+
