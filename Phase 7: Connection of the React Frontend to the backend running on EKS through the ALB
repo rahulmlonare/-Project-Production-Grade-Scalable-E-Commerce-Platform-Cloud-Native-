@@ -178,7 +178,7 @@ $ nano api.js
 import axios from "axios";
 
 const api = axios.create({
-    baseURL: "a7caabbdd3b17426498ad0863b24c192-1414738606.ap-southeast-2.elb.amazonaws.com"
+  baseURL: "http://a7caabbdd3b17426498ad0863b24c192-1414738606.ap-southeast-2.elb.amazonaws.com",
 });
 
 export default api;
@@ -190,16 +190,18 @@ Later we'll improve this by using environment variables (.env) so the URL isn't 
 
 **** Create Navbar ****
 
-src/components/Navbar.jsx
+src/components $ nano Navbar.jsx
 
 function Navbar() {
   return (
-    <nav style={{
-      background:"#232f3e",
-      color:"white",
-      padding:"15px",
-      fontSize:"24px"
-    }}>
+    <nav
+      style={{
+        background: "#232f3e",
+        color: "white",
+        padding: "15px",
+        fontSize: "24px",
+      }}
+    >
       Ecommerce Store
     </nav>
   );
@@ -328,3 +330,57 @@ Start it again:
 
 npm run dev
 
+You should see:
+
+Ecommerce Store
+
+Laptop
+
+₹50000
+
+Add To Cart
+
+-------------------
+
+Mobile
+
+₹20000
+
+Add To Cart
+
+-------------------
+
+Keyboard
+
+₹1000
+
+Add To Cart
+
+Those products should come from your backend (/products), which in turn reads from PostgreSQL RDS.
+
+End of Phase 6 – Step 1
+
+At the end of this phase you'll have:
+
+✅ React frontend running locally
+✅ React calling the backend API
+✅ Backend running on EKS
+✅ Backend reading from PostgreSQL RDS
+✅ Product list displayed in the browser
+
+This completes the first end-to-end flow:
+
+Browser → React → ALB → EKS → PostgreSQL RDS
+
+What comes next (Phase 6 – Step 2)
+
+Once you confirm the frontend is displaying products, we'll continue with features that make it look like a real ecommerce application:
+
+Build a responsive UI with a professional layout.
+Add React Router (/, /cart, /orders, /login).
+Implement the Add to Cart feature backed by DynamoDB.
+Upload and display product images from Amazon S3.
+Containerize the React frontend with Docker.
+Deploy the frontend to EKS behind the same ALB using Ingress rules.
+
+By the end of the frontend phase, users will be able to browse products, add items to their cart, and interact with a complete three-tier application running on AWS.
