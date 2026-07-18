@@ -401,3 +401,351 @@ Containerize the React frontend with Docker.
 Deploy the frontend to EKS behind the same ALB using Ingress rules.
 
 By the end of the frontend phase, users will be able to browse products, add items to their cart, and interact with a complete three-tier application running on AWS.
+
+
+Phase 6 – Step 2: Build a Professional Ecommerce Frontend
+
+Our goal is to transform the simple product listing into a professional ecommerce application.
+
+Final Frontend Architecture
+frontend/
+│
+├── public/
+│
+├── src/
+│   │
+│   ├── api/
+│   │      api.js
+│   │
+│   ├── assets/
+│   │
+│   ├── components/
+│   │      Navbar.jsx
+│   │      Footer.jsx
+│   │      ProductCard.jsx
+│   │      SearchBar.jsx
+│   │
+│   ├── pages/
+│   │      Home.jsx
+│   │      ProductDetails.jsx
+│   │      Cart.jsx
+│   │      Orders.jsx
+│   │      Login.jsx
+│   │
+│   ├── App.jsx
+│   └── main.jsx
+
+This is similar to the folder structure used in production React applications.
+
+Step 2.1 Install React Router
+
+Inside the frontend folder:
+
+npm install react-router-dom
+
+Verify:
+
+npm list react-router-dom
+
+Step 2.2 Configure Routing
+
+Update App.jsx
+
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+
+import Navbar from "./components/Navbar";
+
+import Home from "./pages/Home";
+import Cart from "./pages/Cart";
+import Orders from "./pages/Orders";
+import Login from "./pages/Login";
+
+function App() {
+
+  return (
+
+    <BrowserRouter>
+
+      <Navbar />
+
+      <Routes>
+
+        <Route path="/" element={<Home />} />
+
+        <Route path="/cart" element={<Cart />} />
+
+        <Route path="/orders" element={<Orders />} />
+
+        <Route path="/login" element={<Login />} />
+
+      </Routes>
+
+    </BrowserRouter>
+
+  );
+
+}
+
+export default App;
+
+Step 2.3 Create Empty Pages
+
+**** Create: ****
+
+src/pages/
+
+nano Cart.jsx
+
+function Cart(){
+
+    return(
+
+        <h1>Shopping Cart</h1>
+
+    )
+
+}
+
+export default Cart;
+
+nano Orders.jsx
+
+function Orders(){
+
+    return(
+
+        <h1>Orders</h1>
+
+    )
+
+}
+
+export default Orders;
+
+$nano Login.jsx
+
+function Login(){
+
+    return(
+
+        <h1>Login</h1>
+
+    )
+
+}
+
+export default Login;
+
+Step 2.4 Improve Navbar
+
+Replace your current Navbar with:
+
+import { Link } from "react-router-dom";
+
+function Navbar(){
+
+    return(
+
+        <nav
+        style={{
+            background:"#232F3E",
+            color:"white",
+            padding:"15px",
+            display:"flex",
+            justifyContent:"space-between"
+        }}>
+
+            <h2>Ecommerce Store</h2>
+
+            <div>
+
+                <Link
+                to="/"
+                style={{color:"white",marginRight:"20px"}}
+                >
+                    Home
+                </Link>
+
+                <Link
+                to="/cart"
+                style={{color:"white",marginRight:"20px"}}
+                >
+                    Cart
+                </Link>
+
+                <Link
+                to="/orders"
+                style={{color:"white",marginRight:"20px"}}
+                >
+                    Orders
+                </Link>
+
+                <Link
+                to="/login"
+                style={{color:"white"}}
+                >
+                    Login
+                </Link>
+
+            </div>
+
+        </nav>
+
+    )
+
+}
+
+export default Navbar;
+
+Step 2.5 Test Navigation
+
+Start React:
+
+npm run dev
+
+Open:
+
+http://localhost:5173
+
+Now verify these routes:
+
+/
+/cart
+/orders
+/login
+
+All pages should open successfully.
+
+Step 2.6 Create a Footer Component
+
+Create:
+
+src/components/Footer.jsx
+function Footer(){
+
+    return(
+
+        <footer
+        style={{
+            background:"#232F3E",
+            color:"white",
+            padding:"20px",
+            marginTop:"40px",
+            textAlign:"center"
+        }}>
+
+            © 2026 Ecommerce Store
+
+        </footer>
+
+    )
+
+}
+
+export default Footer;
+
+Update App.jsx to include:
+
+<Footer />
+
+after the <Routes> block.
+
+Update it like this:
+
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+
+import Navbar from "./components/Navbar";
+import Footer from "./components/Footer";
+
+import Home from "./pages/Home";
+import Cart from "./pages/Cart";
+import Orders from "./pages/Orders";
+import Login from "./pages/Login";
+
+function App() {
+  return (
+    <BrowserRouter>
+
+      <Navbar />
+
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/cart" element={<Cart />} />
+        <Route path="/orders" element={<Orders />} />
+        <Route path="/login" element={<Login />} />
+      </Routes>
+
+      <Footer />
+
+    </BrowserRouter>
+  );
+}
+
+export default App;
+
+
+Expected UI
+-----------------------------------------------------
+
+Ecommerce Store
+
+Home | Cart | Orders | Login
+
+-----------------------------------------------------
+
+Products
+
+Laptop
+
+₹50000
+
+Add To Cart
+
+-------------------
+
+Mobile
+
+₹20000
+
+Add To Cart
+
+-------------------
+
+Keyboard
+
+₹1000
+
+Add To Cart
+
+-----------------------------------------------------
+
+©2026 Ecommerce Store
+
+Phase 6 – Step 3 (After You Complete This)
+
+Once the navigation is working, we'll implement the Shopping Cart.
+
+Cart data will be stored in Amazon DynamoDB (high-speed NoSQL, ideal for session/cart data).
+Orders will continue to be stored in PostgreSQL RDS (relational transactional data).
+Product images will be uploaded to and served from Amazon S3.
+We'll then Dockerize the React frontend, push it to Amazon ECR, deploy it to Amazon EKS, and configure AWS Load Balancer Controller so a single ALB serves both:
+https://<ALB-DNS>/ → React Frontend
+https://<ALB-DNS>/api → Node.js Backend
+
+At that point, your application will closely resemble the architecture of a real production ecommerce platform and provide excellent material for AWS/DevOps.
+
+So far, we've successfully completed:
+
+✅ Terraform Infrastructure (VPC, Subnets, IGW, NAT, Route Tables, Security Groups)
+✅ EKS Cluster
+✅ AWS Load Balancer Controller
+✅ Node.js Backend
+✅ PostgreSQL RDS (Private)
+✅ Backend deployed on EKS
+✅ Backend connected to RDS
+✅ /products API working
+✅ React Frontend
+✅ React Router Navigation
+✅ Frontend communicating with Backend
+
+Phase 6 – Step 3: Build the Shopping Cart using DynamoDB
