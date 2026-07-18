@@ -783,10 +783,11 @@ Test backend:
 
 If backend starts and DB connection succeeds → done.
 
-/app # psql \ 
-> -h app-postgres-db.ckoyc6uiyhte.ap-southeast-2.rds.amazonaws.com \ 
-> -U postgres \ 
-> -d appdb Password for user postgres: YourStrongPassword123!
+/app # psql \
+-h app-postgres-db.ckoyc6uiyhte.ap-southeast-2.rds.amazonaws.com \
+-U postgres \
+-d appdb
+
 SSL connection (protocol: TLSv1.2, cipher: ECDHE-RSA-AES256-GCM-SHA384, compression: off, ALPN: none)
 Type "help" for help.
 
@@ -910,7 +911,44 @@ appdb=> SELECT * FROM products;
   1 | Laptop   | 50000.00
   2 | Mobile   | 20000.00
   3 | Keyboard |  1000.00
+
 (3 rows)
+
+appdb=> CREATE TABLE orders (
+appdb(>     id SERIAL PRIMARY KEY,
+appdb(>     product_id INT NOT NULL,
+appdb(>     quantity INT NOT NULL,
+appdb(>     customer_name VARCHAR(100),
+appdb(>     order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+appdb(>
+appdb(>     CONSTRAINT fk_product
+appdb(>         FOREIGN KEY (product_id)
+appdb(>         REFERENCES products(id)
+appdb(> );
+
+appdb=> \dt
+          List of relations
+ Schema |   Name   | Type  |  Owner
+--------+----------+-------+----------
+ public | orders   | table | postgres
+ public | products | table | postgres
+(2 rows)
+
+appdb=> INSERT INTO orders (product_id, quantity, customer_name)
+appdb-> VALUES
+appdb-> (1, 2, 'Rahul'),
+appdb-> (2, 1, 'Amit'),
+appdb-> (3, 5, 'Priya');
+INSERT 0 3
+
+appdb=> SELECT * FROM orders;
+ id | product_id | quantity | customer_name |        order_date
+----+------------+----------+---------------+---------------------------
+  1 |          1 |        2 | Rahul         | 2026-07-18 10:28:41.82371
+  2 |          2 |        1 | Amit          | 2026-07-18 10:28:41.82371
+  3 |          3 |        5 | Priya         | 2026-07-18 10:28:41.82371
+(3 rows)
+
 
 Exit:
 
@@ -929,6 +967,7 @@ From inside the pod:
 You need one of these:
 
 Option 1 (quick test)
+
 kubectl port-forward svc/ecommerce-backend-service 5000:5000
 
 Then open:
