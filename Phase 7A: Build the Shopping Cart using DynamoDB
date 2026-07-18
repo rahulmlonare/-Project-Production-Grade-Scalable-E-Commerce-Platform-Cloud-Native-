@@ -1,0 +1,141 @@
+Architecture:
+                    Browser
+                       │
+                       ▼
+                React Frontend
+                       │
+                       ▼
+                     AWS ALB
+                       │
+             ┌─────────┴─────────┐
+             ▼                   ▼
+      Frontend Pods         Backend Pods
+                                  │
+                ┌─────────────────┴─────────────────┐
+                ▼                                   ▼
+          PostgreSQL RDS                      DynamoDB
+      Products / Orders                  Shopping Cart
+
+Step 1: Create the DynamoDB Table
+
+We'll create it using Terraform to stay consistent with Infrastructure as Code.
+
+Add the following to your main.tf:
+
+####################################
+# DynamoDB Table
+####################################
+
+resource "aws_dynamodb_table" "cart" {
+  name         = "shopping-cart"
+  billing_mode = "PAY_PER_REQUEST"
+
+  hash_key = "cartId"
+
+  attribute {
+    name = "cartId"
+    type = "S"
+  }
+
+  tags = {
+    Name = "shopping-cart"
+  }
+}
+Step 2: Deploy with Terraform
+
+Run:
+
+terraform plan
+
+You should see:
+
+Plan: 1 to add, 0 to change, 0 to destroy
+
+Then:
+
+terraform apply
+
+Type:
+
+yes
+Step 3: Verify the Table
+
+Run:
+
+aws dynamodb list-tables --region ap-southeast-2
+
+Expected:
+
+shopping-cart
+
+Or check in the AWS Console under DynamoDB → Tables.
+
+Step 4: Install the AWS SDK
+
+In your backend project:
+
+cd Ecommerce-Devops-Project/Ecommerce-app/backend
+
+Install the AWS SDK v3 packages:
+
+npm install @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb
+Step 5: Create a DynamoDB Helper
+
+Create a new file:
+
+backend/dynamodb.js
+
+We'll write the complete code in the next step to:
+
+Connect to DynamoDB
+Add items to the cart
+Retrieve the cart
+Remove items from the cart
+Why We're Doing It This Way
+
+In many tutorials, DynamoDB access is written directly in server.js.
+
+In a real project, we separate responsibilities:
+
+backend/
+│
+├── server.js        ← API routes
+├── db.js            ← PostgreSQL connection
+├── dynamodb.js      ← DynamoDB connection
+├── routes/
+├── controllers/
+├── services/
+
+This modular structure is what you'll see in production codebases.
+
+What We'll Build Next
+
+After creating the DynamoDB table, we'll implement these APIs:
+
+Method	Endpoint	Purpose
+POST	/cart	Add a product to the cart
+GET	/cart/:cartId	View cart contents
+DELETE	/cart/:cartId/:productId	Remove an item from the cart
+
+We'll also update the React frontend so that clicking "Add to Cart" stores the selected product in DynamoDB and displays it on the Cart page.
+
+Your Task
+
+Complete these four steps:
+
+Add the aws_dynamodb_table resource to main.tf.
+
+Run:
+
+terraform plan
+
+Run:
+
+terraform apply
+
+Verify the table exists:
+
+aws dynamodb list-tables --region ap-southeast-2
+
+Once the table is created, we'll write the Node.js integration with DynamoDB and then connect the React "Add to Cart" button to it, 
+completing the first full shopping cart workflow.
