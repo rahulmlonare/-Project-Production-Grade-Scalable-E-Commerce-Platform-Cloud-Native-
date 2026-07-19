@@ -1,0 +1,439 @@
+Our goal is:
+
+User clicks "Add To Cart"
+
+        │
+        ▼
+
+React Frontend
+
+        │
+POST /cart
+        │
+
+        ▼
+
+Node.js Backend
+
+        │
+
+        ▼
+
+Amazon DynamoDB
+
+Step 1: Create dynamodb.js
+
+Inside your backend project create:
+
+backend/
+    dynamodb.js
+
+Paste:
+
+const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
+const { DynamoDBDocumentClient } = require("@aws-sdk/lib-dynamodb");
+
+const client = new DynamoDBClient({
+  region: "ap-southeast-2"
+});
+
+const docClient = DynamoDBDocumentClient.from(client);
+
+module.exports = docClient;
+
+*** Step 2 Install UUID package *** 
+
+We'll generate a unique Cart ID.
+
+npm install uuid
+
+
+Step 3 Update server.js
+
+Add these imports near the top:
+
+const dynamoDB = require("./dynamodb");
+
+const {
+  PutCommand,
+  ScanCommand
+} = require("@aws-sdk/lib-dynamodb");
+
+const { v4: uuidv4 } = require("uuid");
+
+Step 4 Create Add-To-Cart API
+
+Below your /orders API add:
+
+app.post("/cart", async (req, res) => {
+
+    try{
+
+        const {
+
+            productId,
+            productName,
+            price
+
+        } = req.body;
+
+        const cartItem = {
+
+            cartId: uuidv4(),
+
+            productId,
+
+            productName,
+
+            price
+
+        };
+
+        await dynamoDB.send(
+
+            new PutCommand({
+
+                TableName:"shopping-cart",
+
+                Item:cartItem
+
+            })
+
+        );
+
+        res.json({
+
+            message:"Product added to cart",
+
+            cartItem
+
+        });
+
+    }
+
+    catch(err){
+
+        console.log(err);
+
+        res.status(500).send("Error");
+
+    }
+
+});
+Step 5 Create View Cart API
+
+Add:
+
+app.get("/cart", async(req,res)=>{
+
+    try{
+
+        const data = await dynamoDB.send(
+
+            new ScanCommand({
+
+                TableName:"shopping-cart"
+
+            })
+
+        );
+
+        res.json(data.Items);
+
+    }
+
+    catch(err){
+
+        console.log(err);
+
+        res.status(500).send("Error");
+
+    }
+
+});
+
+**** So final server.js become
+
+const express = require("express");
+const cors = require("cors");
+const dotenv = require("dotenv");
+const pool = require("./db");
+
+// DynamoDB
+const dynamoDB = require("./dynamodb");
+
+const {
+  PutCommand,
+  ScanCommand
+} = require("@aws-sdk/lib-dynamodb");
+
+const { v4: uuidv4 } = require("uuid");
+
+dotenv.config();
+
+const app = express();
+
+app.use(cors());
+app.use(express.json());
+
+/* =========================
+   Health Check
+========================= */
+
+app.get("/health", (req, res) => {
+  res.json({ status: "Backend Running" });
+});
+
+/* =========================
+   Products
+========================= */
+
+app.get("/products", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM products");
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server Error");
+  }
+});
+
+/* =========================
+   Get Orders
+========================= */
+
+app.get("/orders", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM orders ORDER BY id"
+    );
+
+    res.json(result.rows);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Server Error");
+  }
+});
+
+/* =========================
+   Create Order
+========================= */
+
+app.post("/orders", async (req, res) => {
+  try {
+
+    const {
+      product_id,
+      quantity,
+      customer_name
+    } = req.body;
+
+    const result = await pool.query(
+      `INSERT INTO orders
+      (product_id, quantity, customer_name)
+      VALUES ($1,$2,$3)
+      RETURNING *`,
+      [product_id, quantity, customer_name]
+    );
+
+    res.status(201).json(result.rows[0]);
+
+  } catch (err) {
+
+    console.error(err);
+
+    res.status(500).send("Server Error");
+
+  }
+});
+
+/* =========================
+   Add Product To Cart
+   (DynamoDB)
+========================= */
+
+app.post("/cart", async (req, res) => {
+
+  try {
+
+    const {
+      productId,
+      productName,
+      price
+    } = req.body;
+
+    const cartItem = {
+
+      cartId: uuidv4(),
+
+      productId,
+
+      productName,
+
+      price
+
+    };
+
+    await dynamoDB.send(
+
+      new PutCommand({
+
+        TableName: "shopping-cart",
+
+        Item: cartItem
+
+      })
+
+    );
+
+    res.json({
+
+      message: "Product added to cart",
+
+      cartItem
+
+    });
+
+  } catch (err) {
+
+    console.error(err);
+
+    res.status(500).send("Error");
+
+  }
+
+});
+
+/* =========================
+   Get Cart Items
+========================= */
+
+app.get("/cart", async (req, res) => {
+
+  try {
+
+    const data = await dynamoDB.send(
+
+      new ScanCommand({
+
+        TableName: "shopping-cart"
+
+      })
+
+    );
+
+    res.json(data.Items);
+
+  } catch (err) {
+
+    console.error(err);
+
+    res.status(500).send("Error");
+
+  }
+
+});
+
+/* =========================
+   Start Server
+========================= */
+
+const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, () => {
+  console.log(`Backend running on ${PORT}`);
+});
+
+Step 6 Build New Docker Image
+
+From the backend folder:
+
+$ docker build -t ecommerce-backend2:v2 .
+
+$ docker images
+ecommerce-backend2:v2 
+
+Step 7 Tag Image
+
+docker tag ecommerce-backend2:v2 \
+618307388993.dkr.ecr.ap-southeast-2.amazonaws.com/ecommerce-backend-new:v2
+
+$ docker images
+618307388993.dkr.ecr.ap-southeast-2.amazonaws.com/ecommerce-backend-new:v2
+
+Step 8: Push
+
+$ docker push \
+618307388993.dkr.ecr.ap-southeast-2.amazonaws.com/ecommerce-backend-new:v2
+
+Step 9 Update Kubernetes
+
+Edit
+
+backend-deployment.yaml
+
+Change
+
+image:
+
+to
+
+image: 618307388993.dkr.ecr.ap-southeast-2.amazonaws.com/ecommerce-backend-new:v2
+
+Then:
+
+kubectl apply -f backend-deployment.yaml
+
+Watch rollout:
+
+kubectl rollout status deployment ecommerce-backend
+
+Step 10 Test
+
+Add Product
+
+curl -X POST http://a5bd3ac80cb3f4eeeb97d7c651cf731e-33221974.ap-southeast-2.elb.amazonaws.com/cart \
+-H "Content-Type: application/json" \
+-d '{"productId":1,"productName":"Laptop","price":50000}'
+
+Giving an error
+
+The actual problem
+
+Your backend pod is not allowed to access DynamoDB.
+
+Step 2 Attach the DynamoDB policy
+
+If you're using the AWS Console:
+
+Go to IAM
+Click Roles
+Open the role from Step 1 (or the NodeInstanceRole shown in your error)
+Click Add permissions
+Click Attach policies
+
+Attach:
+
+AmazonDynamoDBFullAccess
+
+Step 3 Restart your pods
+
+$ kubectl rollout restart deployment ecommerce-backend
+
+Wait:
+
+$ kubectl rollout status deployment ecommerce-backend
+
+Step 4 Test again
+
+curl -X POST http://a5bd3ac80cb3f4eeeb97d7c651cf731e-33221974.ap-southeast-2.elb.amazonaws.com/cart \
+-H "Content-Type: application/json" \
+-d '{"productId":1,"productName":"Laptop","price":50000}'
+
+Result: {"message":"Product added to cart","cartItem":{"cartId":"b114bf19-cdd3-41f7-97c4-24a6a2bff36d","productId":1,"productName":"Laptop","price":50000}}
+
+http://<ALB-DNS>/cart
+http://a5bd3ac80cb3f4eeeb97d7c651cf731e-33221974.ap-southeast-2.elb.amazonaws.com/cart
+
+[{"price":50000,"productId":1,"cartId":"b114bf19-cdd3-41f7-97c4-24a6a2bff36d","productName":"Laptop"}]
