@@ -1,0 +1,311 @@
+By the end of this phase, users will be able to:
+
+Register
+Login
+Receive a JWT token
+Access protected APIs
+Logout
+Secure the frontend
+
+Authentication Flow
+             Register
+                │
+                ▼
+        PostgreSQL Users Table
+
+                │
+                ▼
+             Login
+
+                │
+                ▼
+      Verify username/password
+
+                │
+                ▼
+          Generate JWT Token
+
+                │
+                ▼
+      React stores JWT locally
+
+                │
+                ▼
+ Every protected API request includes:
+
+ Authorization: Bearer <JWT>
+
+                │
+                ▼
+ Backend verifies JWT
+
+                │
+                ▼
+ Protected resource returned
+
+Step 1 – Create Users Table
+
+Connect to PostgreSQL:
+
+$ kubectl get pods
+NAME                                 READY   STATUS    RESTARTS   AGE
+ecommerce-backend-567545944d-v2hx8   1/1     Running   0          3h4m
+ecommerce-backend-567545944d-vct4p   1/1     Running   0          3h4m
+
+$ kubectl exec -it ecommerce-backend-567545944d-v2hx8 -- sh
+
+/app # apk add --no-cache postgresql-client
+
+/app # psql \
+> -h app-postgres-db.ckoyc6uiyhte.ap-southeast-2.rds.amazonaws.com \
+> -U postgres \
+> -d appdb
+Password for user postgres:
+
+appdb=> 
+
+Step 1 – Create Users Table
+
+Connect to PostgreSQL:
+
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    fullname VARCHAR(100) NOT NULL,
+    email VARCHAR(150) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+Verify:
+
+\dt
+
+Expected:
+
+products
+orders
+users
+
+Step 2 – Install Required Packages
+
+Inside the backend:
+
+/Ecommerce-app/backend$ npm install bcrypt jsonwebtoken
+
+Why?
+
+bcrypt
+
+Encrypts passwords
+Passwords are never stored in plain text
+
+jsonwebtoken
+
+Creates JWT tokens
+Used by almost every production Node.js application
+
+Step 3 – Backend Files
+
+We'll improve the backend structure.
+
+Current:
+
+backend/
+
+server.js
+db.js
+dynamodb.js
+
+We'll move toward:
+
+backend/
+
+controllers/
+middleware/
+routes/
+services/
+
+server.js
+db.js
+dynamodb.js
+
+This is how enterprise Node.js projects are organized.
+
+Step 4 – Create Authentication APIs
+
+We'll implement:
+
+POST /register
+POST /login
+
+The logic will be:
+
+Register
+Receive user
+
+↓
+
+Hash password
+
+↓
+
+Store in PostgreSQL
+
+↓
+
+Return success
+Login
+Receive email/password
+
+↓
+
+Find user
+
+↓
+
+Compare password
+
+↓
+
+Generate JWT
+
+↓
+
+Return token
+Step 5 – Protect APIs
+
+Currently anyone can call:
+
+/products
+/orders
+/cart
+
+We'll secure them using JWT.
+
+Request:
+
+Authorization: Bearer eyJhbGciOi...
+
+Middleware:
+
+Verify Token
+
+↓
+
+Valid?
+
+↓
+
+Yes
+
+↓
+
+Continue
+
+↓
+
+Else
+
+↓
+
+401 Unauthorized
+Step 6 – React Login
+
+We'll build:
+
+Login Page
+
+Email
+
+Password
+
+[ Login ]
+
+After login:
+
+React stores:
+
+localStorage
+
+↓
+
+JWT Token
+
+Every API request automatically sends:
+
+Authorization
+
+Bearer Token
+
+using Axios interceptors.
+
+Step 7 – Logout
+
+Logout simply removes the token:
+
+localStorage.removeItem("token");
+
+User returns to:
+
+/login
+
+Industry Security Improvements
+
+We'll also implement:
+
+Password hashing with bcrypt
+JWT expiration (e.g., 1 hour)
+Kubernetes Secret for the JWT signing key
+Environment variables (no hardcoded secrets)
+Proper error handling
+Protected routes
+
+
+Remaining Project Roadmap
+
+After authentication, we'll continue with the remaining production features:
+
+Phase 8 – Amazon S3
+
+Upload product images
+Display images in React
+Generate secure object URLs
+
+Phase 9 – Jenkins CI/CD
+GitHub webhook
+Jenkins pipeline
+Build Docker images
+Push to Amazon ECR
+Deploy automatically to EKS
+
+Phase 10 – Monitoring & Logging
+
+CloudWatch Logs
+Prometheus
+Grafana
+ELK Stack
+
+Phase 11 – Production Readiness
+
+HTTPS with ACM
+Route 53 custom domain
+Horizontal Pod Autoscaler (HPA)
+Cluster Autoscaler
+Rolling Updates
+Readiness & Liveness Probes
+Network Policies
+Resource Requests & Limits
+Pod Disruption Budgets
+
+To meet that goal, we're not stopping after a CRUD application. By the end, you'll have built a complete cloud-native ecommerce platform that demonstrates:
+
+Infrastructure as Code (Terraform)
+Containerization (Docker)
+Orchestration (Kubernetes/EKS)
+CI/CD (Jenkins)
+AWS Services (ECR, EKS, RDS, DynamoDB, S3, IAM, ALB, CloudWatch)
+Security (JWT, Secrets, IAM)
+Monitoring and Logging
+High Availability and Scalability
+
+Phase 7 - Authentication & Authorization
