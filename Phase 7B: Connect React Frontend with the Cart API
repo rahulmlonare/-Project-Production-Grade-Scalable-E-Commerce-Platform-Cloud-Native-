@@ -1,0 +1,242 @@
+This is where your frontend becomes interactive.
+
+Current flow:
+
+User clicks Add To Cart
+        │
+        ▼
+Nothing happens ❌
+
+After this phase:
+
+User clicks Add To Cart
+        │
+        ▼
+React
+        │
+POST /cart
+        │
+        ▼
+Node.js
+        │
+        ▼
+DynamoDB
+        │
+        ▼
+Success Message
+
+
+Step 1 – Update frontend/src/components/ ProductCard.jsx
+
+Replace your current ProductCard.jsx with:
+
+import api from "../api/api";
+
+function ProductCard({ product }) {
+
+    const addToCart = async () => {
+
+        try {
+
+            await api.post("/cart", {
+
+                productId: product.id,
+
+                productName: product.name,
+
+                price: product.price
+
+            });
+
+            alert("Product Added To Cart");
+
+        } catch (err) {
+
+            console.error(err);
+
+            alert("Error adding product");
+
+        }
+
+    };
+
+    return (
+
+        <div
+            style={{
+                border: "1px solid gray",
+                padding: "20px",
+                margin: "20px",
+                width: "250px"
+            }}
+        >
+
+            <h2>{product.name}</h2>
+
+            <h3>₹ {product.price}</h3>
+
+            <button onClick={addToCart}>
+                Add To Cart
+            </button>
+
+        </div>
+
+    );
+
+}
+
+export default ProductCard;
+
+
+Step 2 – Create Cart Page
+
+Replace /Ecommerce-app/frontend/src/pages/ Cart.jsx 
+with:
+
+import { useEffect, useState } from "react";
+import api from "../api/api";
+
+function Cart() {
+
+    const [cart, setCart] = useState([]);
+
+    useEffect(() => {
+
+        loadCart();
+
+    }, []);
+
+    async function loadCart() {
+
+        try {
+
+            const res = await api.get("/cart");
+
+            setCart(res.data);
+
+        } catch (err) {
+
+            console.log(err);
+
+        }
+
+    }
+
+    return (
+
+        <div>
+
+            <h1>Shopping Cart</h1>
+
+            {
+
+                cart.map(item => (
+
+                    <div
+                        key={item.cartId}
+                        style={{
+                            border: "1px solid gray",
+                            margin: "10px",
+                            padding: "15px"
+                        }}
+                    >
+
+                        <h2>{item.productName}</h2>
+
+                        <h3>₹ {item.price}</h3>
+
+                    </div>
+
+                ))
+
+            }
+
+        </div>
+
+    );
+
+}
+
+export default Cart;
+
+
+Step 3 – Test
+
+Run:
+
+npm run dev
+
+Open:
+
+http://localhost:5173
+
+Click:
+
+Add To Cart
+
+You should get:
+
+Product Added To Cart
+
+Now open:
+
+http://localhost:5173/cart
+
+Expected:
+
+Shopping Cart
+
+Laptop
+
+₹50000
+
+-----------------
+
+Mobile
+
+₹20000
+
+-----------------
+
+Keyboard
+
+₹1000
+
+The data should be coming live from DynamoDB, not from local state.
+
+Step 4 – Verify in AWS
+
+Open:
+
+AWS Console → DynamoDB → shopping-cart → Explore table items
+
+You should see records similar to:
+
+{
+  "cartId": "6f4d9b54-xxxx-xxxx-xxxx",
+  "productId": 1,
+  "productName": "Laptop",
+  "price": 50000
+}
+
+This confirms the full flow:
+
+React → ALB → EKS → Node.js → DynamoDB
+
+Your Current Architecture
+                    Internet
+                        │
+                        ▼
+               AWS Application Load Balancer
+                        │
+          ┌─────────────┴─────────────┐
+          ▼                           ▼
+    React Frontend             Node.js Backend
+       (React)                    (EKS)
+                                       │
+             ┌─────────────────────────┴────────────────────────┐
+             ▼                                                  ▼
+     PostgreSQL RDS                                    DynamoDB
+ Products, Orders, Users                          Shopping Cart
+
+This is no longer a simple CRUD application—it's a multi-tier cloud-native application.
