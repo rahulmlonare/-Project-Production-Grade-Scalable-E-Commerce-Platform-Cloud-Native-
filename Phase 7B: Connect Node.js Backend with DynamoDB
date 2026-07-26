@@ -26,7 +26,7 @@ Step 1: Create dynamodb.js
 Inside your backend project create:
 
 backend/
-    dynamodb.js
+    $ nano dynamodb.js
 
 Paste:
 
@@ -40,6 +40,7 @@ const client = new DynamoDBClient({
 const docClient = DynamoDBDocumentClient.from(client);
 
 module.exports = docClient;
+
 
 *** Step 2 Install UUID package *** 
 
@@ -152,7 +153,7 @@ app.get("/cart", async(req,res)=>{
 
 });
 
-**** So final server.js become
+**** So final server.js becomes
 
 const express = require("express");
 const cors = require("cors");
@@ -403,7 +404,7 @@ The actual problem
 
 Your backend pod is not allowed to access DynamoDB.
 
-Step 2 Attach the DynamoDB policy
+Step 2: Attach the DynamoDB policy
 
 If you're using the AWS Console:
 
@@ -425,7 +426,7 @@ Wait:
 
 $ kubectl rollout status deployment ecommerce-backend
 
-Step 4 Test again
+Step 4: Test again
 
 curl -X POST http://a5bd3ac80cb3f4eeeb97d7c651cf731e-33221974.ap-southeast-2.elb.amazonaws.com/cart \
 -H "Content-Type: application/json" \
