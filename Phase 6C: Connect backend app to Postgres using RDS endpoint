@@ -763,6 +763,9 @@ OK: 15.9 MiB in 27 packages
 /app # apk add bind-tools
 OK: 22.9 MiB in 41 packages
 
+/app # apk add --no-cache postgresql-client
+/app # psql --version
+
 
 Test DNS:
 
@@ -787,6 +790,14 @@ If backend starts and DB connection succeeds → done.
 -h app-postgres-db.ckoyc6uiyhte.ap-southeast-2.rds.amazonaws.com \
 -U postgres \
 -d appdb
+
+OR
+
+psql -h app-postgres-db.ckoyc6uiyhte.ap-southeast-2.rds.amazonaws.com -U postgres -d appdb
+
+Password for user postgres: YourStrongPassword123!
+
+appdb=>
 
 SSL connection (protocol: TLSv1.2, cipher: ECDHE-RSA-AES256-GCM-SHA384, compression: off, ALPN: none)
 Type "help" for help.
@@ -915,16 +926,16 @@ appdb=> SELECT * FROM products;
 (3 rows)
 
 appdb=> CREATE TABLE orders (
-appdb(>     id SERIAL PRIMARY KEY,
-appdb(>     product_id INT NOT NULL,
-appdb(>     quantity INT NOT NULL,
-appdb(>     customer_name VARCHAR(100),
-appdb(>     order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-appdb(>
-appdb(>     CONSTRAINT fk_product
-appdb(>         FOREIGN KEY (product_id)
-appdb(>         REFERENCES products(id)
-appdb(> );
+    id SERIAL PRIMARY KEY,
+    product_id INT NOT NULL,
+    quantity INT NOT NULL,
+    customer_name VARCHAR(100),
+    order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_product
+        FOREIGN KEY (product_id)
+        REFERENCES products(id)
+);
 
 appdb=> \dt
           List of relations
