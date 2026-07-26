@@ -48,6 +48,7 @@ Step 1 – Create Users Table
 Connect to PostgreSQL:
 
 $ kubectl get pods
+
 NAME                                 READY   STATUS    RESTARTS   AGE
 ecommerce-backend-567545944d-v2hx8   1/1     Running   0          3h4m
 ecommerce-backend-567545944d-vct4p   1/1     Running   0          3h4m
@@ -172,6 +173,7 @@ Generate JWT
 ↓
 
 Return token
+
 Step 5 – Protect APIs
 
 Currently anyone can call:
@@ -209,6 +211,7 @@ Else
 ↓
 
 401 Unauthorized
+
 Step 6 – React Login
 
 We'll build:
@@ -308,4 +311,379 @@ Security (JWT, Secrets, IAM)
 Monitoring and Logging
 High Availability and Scalability
 
-Phase 7 - Authentication & Authorization
+***** Phase 7 - Authentication & Authorization ****** 
+
+We'll implement User Registration
+
+Step 1: Install Required Packages
+
+Go to your backend folder:
+
+cd ~/Ecommerce-Devops-Project/Ecommerce-app/backend
+
+Install the packages:
+
+$ npm install bcrypt jsonwebtoken
+
+Verify:
+
+$ npm list bcrypt
+npm list jsonwebtoken
+
+Step 2: Create the Users Table
+
+Connect to PostgreSQL and run:
+
+/app # psql \
+> > -h app-postgres-db.ckoyc6uiyhte.ap-southeast-2.rds.amazonaws.com \
+> > -U postgres \
+> > -d appdb
+
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    fullname VARCHAR(100) NOT NULL,
+    email VARCHAR(150) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+Verify:
+
+\dt
+
+Expected:
+
+products
+orders
+users
+
+Step 3: Create Backend Folder Structure
+
+Inside your backend project, create these folders:
+
+backend/
+│
+├── controllers/
+├── routes/
+├── middleware/
+│
+├── db.js
+├── dynamodb.js
+├── server.js
+└── package.json
+
+On Git Bash:
+
+mkdir controllers
+mkdir routes
+mkdir middleware
+
+***** Step 4: Create authController.js
+
+Create:
+
+$ backend/controllers/authController.js
+
+Paste the following code:
+
+const pool = require("../db");
+const bcrypt = require("bcrypt");
+
+// Register User
+const register = async (req, res) => {
+  try {
+    const { fullname, email, password } = req.body;
+
+    // Check if user already exists
+    const existingUser = await pool.query(
+      "SELECT * FROM users WHERE email = $1",
+      [email]
+    );
+
+    if (existingUser.rows.length > 0) {
+      return res.status(400).json({
+        message: "Email already registered"
+      });
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Save user
+    await pool.query(
+      `INSERT INTO users (fullname, email, password)
+       VALUES ($1, $2, $3)`,
+      [fullname, email, hashedPassword]
+    );
+
+    res.status(201).json({
+      message: "User registered successfully"
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      message: "Internal Server Error"
+    });
+  }
+};
+
+module.exports = {
+  register
+};
+
+**** Why this is better
+
+Compared to a basic implementation, this version:
+
+Checks whether the email already exists.
+Hashes the password before storing it.
+Returns appropriate HTTP status codes (201, 400, 500).
+Never stores plain-text passwords.
+
+**** Step 5: Create authRoutes.js
+
+Create:
+
+$ backend/routes/authRoutes.js
+
+Paste:
+
+const express = require("express");
+const router = express.Router();
+
+const { register } = require("../controllers/authController");
+
+router.post("/register", register);
+
+module.exports = router;
+
+*** Step 6: Update server.js
+
+At the top of server.js, add:
+
+const authRoutes = require("./routes/authRoutes");
+
+Then, after:
+
+app.use(express.json());
+
+add:
+
+app.use("/auth", authRoutes);
+
+**** Complete updated server.js **** 
+
+const express = require("express");
+const cors = require("cors");
+const dotenv = require("dotenv");
+const pool = require("./db");
+
+// Authentication Routes
+const authRoutes = require("./routes/authRoutes");
+
+// DynamoDB
+const dynamoDB = require("./dynamodb");
+
+const {
+  PutCommand,
+  ScanCommand
+} = require("@aws-sdk/lib-dynamodb");
+
+const { v4: uuidv4 } = require("uuid");
+
+dotenv.config();
+
+const app = express();
+
+app.use(cors());
+app.use(express.json());
+
+// Authentication APIs
+app.use("/auth", authRoutes);
+
+/* =========================
+   Health Check
+========================= */
+
+app.get("/health", (req, res) => {
+  res.json({ status: "Backend Running" });
+});
+
+/* =========================
+   Products
+========================= */
+
+app.get("/products", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM products");
+    res.json(result.rows);
+  } catch (err) {
+    console.log(err.message);
+    res.status(500).send("Server Error");
+  }
+});
+
+/* =========================
+   Get Orders
+========================= */
+
+app.get("/orders", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM orders ORDER BY id"
+    );
+
+    res.json(result.rows);
+
+  } catch (err) {
+    console.log(err);
+    res.status(500).send("Server Error");
+  }
+});
+
+/* =========================
+   Create Order
+========================= */
+
+app.post("/orders", async (req, res) => {
+  try {
+
+    const {
+      product_id,
+      quantity,
+      customer_name
+    } = req.body;
+
+    const result = await pool.query(
+      `INSERT INTO orders
+      (product_id, quantity, customer_name)
+      VALUES ($1,$2,$3)
+      RETURNING *`,
+      [product_id, quantity, customer_name]
+    );
+
+    res.status(201).json(result.rows[0]);
+
+  } catch (err) {
+
+    console.log(err);
+
+    res.status(500).send("Server Error");
+
+  }
+});
+
+/* =========================
+   Add Product To Cart
+========================= */
+
+app.post("/cart", async (req, res) => {
+
+  try {
+
+    const {
+      productId,
+      productName,
+      price
+    } = req.body;
+
+    const cartItem = {
+
+      cartId: uuidv4(),
+
+      productId,
+
+      productName,
+
+      price
+
+    };
+
+    await dynamoDB.send(
+
+      new PutCommand({
+
+        TableName: "shopping-cart",
+
+        Item: cartItem
+
+      })
+
+    );
+
+    res.json({
+
+      message: "Product added to cart",
+
+      cartItem
+
+    });
+
+  } catch (err) {
+
+    console.log(err);
+
+    res.status(500).send("Error");
+
+  }
+
+});
+
+/* =========================
+   Get Cart Items
+========================= */
+
+app.get("/cart", async (req, res) => {
+
+  try {
+
+    const data = await dynamoDB.send(
+
+      new ScanCommand({
+
+        TableName: "shopping-cart"
+
+      })
+
+    );
+
+    res.json(data.Items);
+
+  } catch (err) {
+
+    console.error(err);
+
+    res.status(500).send("Error");
+
+  }
+
+});
+
+/* =========================
+   Start Server
+========================= */
+
+const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, () => {
+  console.log(`Backend running on ${PORT}`);
+});
+
+**** Step 7: Test Locally
+
+If you're testing on your laptop:
+
+$ npm start
+
+Phase 7 – Step 8: Test the API
+
+Using curl:
+
+curl -X POST http://localhost:5000/auth/register \
+-H "Content-Type: application/json" \
+-d '{
+  "fullname":"Rahul Lonare",
+  "email":"rahul@example.com",
+  "password":"Password123!"
+}'
