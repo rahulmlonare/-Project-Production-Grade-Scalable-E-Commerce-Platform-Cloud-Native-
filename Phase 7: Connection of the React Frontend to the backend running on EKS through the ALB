@@ -89,14 +89,17 @@ cd frontend
 
 Install dependencies:
 
-npm install
+$ npm install
 
 Install additional packages:
 
 npm install axios react-router-dom
+
 Why these?
+
 axios → Call backend APIs
 react-router-dom → Multi-page routing (Home, Cart, Orders, etc.)
+
 Verify React
 
 Start it:
@@ -441,7 +444,7 @@ Step 2.1 Install React Router
 
 Inside the frontend folder:
 
-npm install react-router-dom
+$ npm install react-router-dom
 
 Verify:
 
@@ -494,7 +497,7 @@ Step 2.3 Create Empty Pages
 
 src/pages/
 
-nano Cart.jsx
+$ nano Cart.jsx
 
 function Cart(){
 
@@ -729,6 +732,7 @@ Cart data will be stored in Amazon DynamoDB (high-speed NoSQL, ideal for session
 Orders will continue to be stored in PostgreSQL RDS (relational transactional data).
 Product images will be uploaded to and served from Amazon S3.
 We'll then Dockerize the React frontend, push it to Amazon ECR, deploy it to Amazon EKS, and configure AWS Load Balancer Controller so a single ALB serves both:
+
 https://<ALB-DNS>/ → React Frontend
 https://<ALB-DNS>/api → Node.js Backend
 
