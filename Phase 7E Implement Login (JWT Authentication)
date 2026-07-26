@@ -1,0 +1,338 @@
+Now we'll build the login API.
+
+Authentication Flow
+React Login Page
+       │
+       ▼
+POST /auth/login
+       │
+       ▼
+Find User by Email
+       │
+       ▼
+Compare Password (bcrypt)
+       │
+       ▼
+Generate JWT
+       │
+       ▼
+Return Token
+       │
+       ▼
+React stores token
+
+Step 1: Update .env
+
+Add a JWT secret if you haven't already:
+
+JWT_SECRET=MySuperSecretJWTKey123
+
+backend $ nano .env
+
+DB_HOST=app-postgres-db.ckoyc6uiyhte.ap-southeast-2.rds.amazonaws.com
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=YourStrongPassword123!
+DB_NAME=appdb
+JWT_SECRET=MySuperSecretJWTKey123
+
+Restart your backend after changing .env.
+
+$ kubectl rollout restart deployment ecommerce-backend
+
+Step 2: Update controllers/authController.js
+
+At the top, add:
+
+const jwt = require("jsonwebtoken");
+
+Below the register function, add the following login function:
+
+const login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // Find user
+    const result = await pool.query(
+      "SELECT * FROM users WHERE email = $1",
+      [email]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({
+        message: "Invalid email or password"
+      });
+    }
+
+    const user = result.rows[0];
+
+    // Compare password
+    const isMatch = await bcrypt.compare(password, user.password);
+
+    if (!isMatch) {
+      return res.status(401).json({
+        message: "Invalid email or password"
+      });
+    }
+
+    // Generate JWT
+    const token = jwt.sign(
+      {
+        id: user.id,
+        email: user.email
+      },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: "1h"
+      }
+    );
+
+    res.json({
+      message: "Login Successful",
+      token
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      message: "Internal Server Error"
+    });
+  }
+};
+
+Update the export at the bottom:
+
+module.exports = {
+  register,
+  login
+};
+
+**** Final authController.js
+
+/backend/controllers $ nano authController.js
+
+const pool = require("../db");
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
+
+// =========================
+// Register User
+// =========================
+const register = async (req, res) => {
+  try {
+    const { fullname, email, password } = req.body;
+
+    // Check if user already exists
+    const existingUser = await pool.query(
+      "SELECT * FROM users WHERE email = $1",
+      [email]
+    );
+
+    if (existingUser.rows.length > 0) {
+      return res.status(400).json({
+        message: "Email already registered"
+      });
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Save user
+    await pool.query(
+      `INSERT INTO users (fullname, email, password)
+       VALUES ($1, $2, $3)`,
+      [fullname, email, hashedPassword]
+    );
+
+    res.status(201).json({
+      message: "User registered successfully"
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      message: "Internal Server Error"
+    });
+  }
+};
+
+// =========================
+// Login User
+// =========================
+const login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // Find user
+    const result = await pool.query(
+      "SELECT * FROM users WHERE email = $1",
+      [email]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({
+        message: "Invalid email or password"
+      });
+    }
+
+    const user = result.rows[0];
+
+    // Compare password
+    const isMatch = await bcrypt.compare(
+      password,
+      user.password
+    );
+
+    if (!isMatch) {
+      return res.status(401).json({
+        message: "Invalid email or password"
+      });
+    }
+
+    // Generate JWT
+    const token = jwt.sign(
+      {
+        id: user.id,
+        email: user.email
+      },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: "1h"
+      }
+    );
+
+    res.json({
+      message: "Login Successful",
+      token
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      message: "Internal Server Error"
+    });
+  }
+};
+
+module.exports = {
+  register,
+  login
+};
+
+Step 3: Update routes/authRoutes.js
+
+Import both functions:
+
+const { register, login } = require("../controllers/authController");
+
+Add the login route:
+
+router.post("/login", login);
+
+Your file should now look like:
+
+$ nano authRoutes.js
+
+const express = require("express");
+const router = express.Router();
+
+const { register, login } = require("../controllers/authController");
+
+router.post("/register", register);
+router.post("/login", login);
+
+module.exports = router;
+
+Step 4: Restart the Backend
+
+$ kubectl rollout restart deployment ecommerce-backend
+
+*** Your backend is not serving the login route yet.
+
+Your routes/authRoutes.js currently contains only:
+
+const { register } = require("../controllers/authController");
+
+router.post("/register", register);
+
+**** There is no login route, so /auth/login will never work.
+
+**** Step 1: Update routes/authRoutes.js
+
+**** Replace the entire file with:
+
+const express = require("express");
+const router = express.Router();
+
+const {
+  register,
+  login
+} = require("../controllers/authController");
+
+router.post("/register", register);
+router.post("/login", login);
+
+module.exports = router;
+
+Step 2: Rebuild the Docker image
+
+$ docker build -t ecommerce-backend-new:latest .
+
+Step 3: Tag the image
+
+$ docker tag ecommerce-backend-new:latest 618307388993.dkr.ecr.ap-southeast-2.amazonaws.com/ecommerce-backend-new:latest
+
+Step 4: Push to ECR
+
+$ docker push 618307388993.dkr.ecr.ap-southeast-2.amazonaws.com/ecommerce-backend-new:latest
+
+Step 5: Restart the deployment
+
+$ kubectl rollout restart deployment ecommerce-backend
+
+Wait for it:
+
+$ kubectl rollout status deployment ecommerce-backend
+deployment "ecommerce-backend" successfully rolled out
+
+
+Step 6: Verify inside the pod
+
+$ kubectl exec -it deployment/ecommerce-backend -- sh
+
+/app # cat routes/authRoutes.js
+
+You should now see:
+
+router.post("/register", register);
+router.post("/login", login);
+
+Step 7: Test login
+
+/backend $ curl -X POST http://afae7996fdf6c4c5ea785cede0437c37-127026330.ap-southeast-2.elb.amazonaws.com/auth/login \
+-H "Content-Type: application/json" \
+-d '{
+  "email":"rahul@example.com",
+  "password":"Password123!"
+}'
+
+Expected Response
+{
+  "message": "Login Successful",
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+
+***** My outcome: {"message":"Login Successful","token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJyYWh1bEBleGFtcGxlLmNvbSIsImlhdCI6MTc4NTA4NjQ5MywiZXhwIjoxNzg1MDkwMDkzfQ.2U2T5mkqGVDzduEZPeogs
+kfxsntxQWY_jMeCJBXkLIY"}
+
+Understanding the JWT
+
+The token contains information like:
+
+{
+  "id": 1,
+  "email": "rahul@example.com",
+  "exp": 1753700000
+}
+
+Next Phase: Authorization Middleware
