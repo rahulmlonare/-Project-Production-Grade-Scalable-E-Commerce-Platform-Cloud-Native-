@@ -335,9 +335,9 @@ Step 2: Create the Users Table
 Connect to PostgreSQL and run:
 
 /app # psql \
-> > -h app-postgres-db.ckoyc6uiyhte.ap-southeast-2.rds.amazonaws.com \
-> > -U postgres \
-> > -d appdb
+-h app-postgres-db.ckoyc6uiyhte.ap-southeast-2.rds.amazonaws.com \
+-U postgres \
+-d appdb
 
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
@@ -687,3 +687,302 @@ curl -X POST http://localhost:5000/auth/register \
   "email":"rahul@example.com",
   "password":"Password123!"
 }'
+
+It gives Internal server error:
+
+The server.js you pasted is not the same version that is running in Kubernetes. It does not contain the authentication routes at all, which explains why:
+
+returned nothing.
+
+That means your Docker image was built from an older server.js before you added authentication.
+
+Replace your entire server.js with the following:
+
+const express = require("express");
+const cors = require("cors");
+const dotenv = require("dotenv");
+const pool = require("./db");
+
+// Authentication Routes
+const authRoutes = require("./routes/authRoutes");
+
+// DynamoDB
+const dynamoDB = require("./dynamodb");
+
+const {
+  PutCommand,
+  ScanCommand
+} = require("@aws-sdk/lib-dynamodb");
+
+const { v4: uuidv4 } = require("uuid");
+
+dotenv.config();
+
+const app = express();
+
+app.use(cors());
+app.use(express.json());
+
+// =========================
+// Auth Routes
+// =========================
+app.use("/auth", authRoutes);
+
+// =========================
+// Health Check
+// =========================
+app.get("/health", (req, res) => {
+  res.json({
+    status: "Backend Running"
+  });
+});
+
+// =========================
+// Products
+// =========================
+app.get("/products", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM products"
+    );
+
+    res.json(result.rows);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Server Error");
+  }
+});
+
+// =========================
+// Get Orders
+// =========================
+app.get("/orders", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM orders ORDER BY id"
+    );
+
+    res.json(result.rows);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Server Error");
+  }
+});
+
+// =========================
+// Create Order
+// =========================
+app.post("/orders", async (req, res) => {
+  try {
+
+    const {
+      product_id,
+      quantity,
+      customer_name
+    } = req.body;
+
+    const result = await pool.query(
+      `INSERT INTO orders
+      (product_id, quantity, customer_name)
+      VALUES ($1,$2,$3)
+      RETURNING *`,
+      [product_id, quantity, customer_name]
+    );
+
+    res.status(201).json(result.rows[0]);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Server Error");
+  }
+});
+
+// =========================
+// Add Product To Cart
+// =========================
+app.post("/cart", async (req, res) => {
+
+  try {
+
+    const {
+      productId,
+      productName,
+      price
+    } = req.body;
+
+    const cartItem = {
+
+      cartId: uuidv4(),
+
+      productId,
+
+      productName,
+
+      price
+
+    };
+
+    await dynamoDB.send(
+
+      new PutCommand({
+
+        TableName: "shopping-cart",
+
+        Item: cartItem
+
+      })
+
+    );
+
+    res.json({
+
+      message: "Product added to cart",
+
+      cartItem
+
+    });
+
+  } catch (err) {
+
+    console.error(err);
+
+    res.status(500).send("Error");
+
+  }
+
+});
+
+// =========================
+// View Cart
+// =========================
+app.get("/cart", async (req, res) => {
+
+  try {
+
+    const data = await dynamoDB.send(
+
+      new ScanCommand({
+
+        TableName: "shopping-cart"
+
+      })
+
+    );
+
+    res.json(data.Items);
+
+  } catch (err) {
+
+    console.error(err);
+
+    res.status(500).send("Error");
+
+  }
+
+});
+
+// =========================
+// Start Server
+// =========================
+const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, () => {
+  console.log(`Backend running on ${PORT}`);
+});
+
+After saving it
+
+Build a new Docker image:
+
+$ docker build -t ecommerce-backend-new:latest .
+
+Tag it:
+
+$ docker tag ecommerce-backend-new:latest 618307388993.dkr.ecr.ap-southeast-2.amazonaws.com/ecommerce-backend-new:latest
+
+Push it:
+
+$ docker push 618307388993.dkr.ecr.ap-southeast-2.amazonaws.com/ecommerce-backend-new:latest
+
+Restart the deployment so the new image is pulled:
+
+$ kubectl rollout restart deployment ecommerce-backend
+
+Watch the rollout:
+
+$ kubectl rollout status deployment ecommerce-backend
+
+Verify the image in the running pod:
+
+kubectl exec -it deployment/ecommerce-backend -- sh
+
+Inside the pod:
+
+# grep auth server.js
+
+You should see:
+
+const authRoutes = require("./routes/authRoutes");
+app.use("/auth", authRoutes);
+
+
+Then run this command from Git Bash (replace with your actual LoadBalancer DNS):
+
+curl -X POST http://afae7996fdf6c4c5ea785cede0437c37-127026330.ap-southeast-2.elb.amazonaws.com/auth/register \
+-H "Content-Type: application/json" \
+-d '{
+  "fullname":"Rahul Lonare",
+  "email":"rahul@example.com",
+  "password":"Password123!"
+}'
+
+Expected response:
+
+{
+  "message": "User registered successfully"
+}
+
+Step 9: Verify in PostgreSQL
+
+Connect to your database and run:
+
+/app # psql \
+> -h app-postgres-db.ckoyc6uiyhte.ap-southeast-2.rds.amazonaws.com \
+> -U postgres \
+> -d appdb
+Password for user postgres:
+
+
+SELECT id, fullname, email FROM users;
+
+appdb=> SELECT id, fullname, email FROM users;
+ id |   fullname   |       email
+----+--------------+-------------------
+  1 | Rahul Lonare | rahul@example.com
+(1 row)
+
+appdb=> SELECT password FROM users;
+                           password
+--------------------------------------------------------------
+ $2b$10$RVE1yDKkBfwmaaJd45WKKe6Zxbl8wg96S/FersOnMkXM918Y1Thpq
+(1 row)
+
+
+You should never see the original password in the database.
+
+Once registration is working, we'll implement JWT Login and then Authorization Middleware to protect your existing /products, /orders, and /cart APIs.
+
+We have successfully implemented your first production-ready authentication endpoint.
+
+So far you have:
+
+✅ User Registration
+✅ Password hashing using bcrypt
+✅ Users stored in PostgreSQL
+✅ Duplicate email validation
+✅ REST API structure (controllers, routes)
+✅ Tested successfully
+
+This is exactly how many production Node.js applications begin their authentication flow.
