@@ -1,0 +1,361 @@
+Right now:
+
+React
+   │
+   ▼
+Backend
+
+We'll change it to:
+
+React Login
+      │
+      ▼
+POST /auth/login
+      │
+      ▼
+JWT Token
+      │
+      ▼
+Store in Browser
+      │
+      ▼
+Every API Request
+
+Authorization: Bearer JWT
+
+This is exactly how production React applications work.
+
+****** Step 1 Install Axios (if not already installed)
+
+Inside the frontend:
+
+$ npm install axios
+
+*** Step 2 Create API Folder
+
+Create:
+
+src/
+    api/
+        api.js
+
+*** Step 3 Create api.js
+
+$ nano api.js
+
+import axios from "axios";
+
+const api = axios.create({
+
+    baseURL: "http://YOUR-ALB-DNS"
+
+});
+
+// Automatically attach JWT token
+api.interceptors.request.use((config) => {
+
+    const token = localStorage.getItem("token");
+
+    if (token) {
+
+        config.headers.Authorization = `Bearer ${token}`;
+
+    }
+
+    return config;
+
+});
+
+export default api;
+
+***  Replace:
+
+http://YOUR-ALB-DNS
+
+with your actual ALB DNS.
+
+How this works
+
+Every request becomes:
+
+GET /products
+
+Authorization: Bearer eyJhbGc...
+
+without writing the Authorization header each time.
+
+This is the standard approach used in React applications.
+
+*** Step 4 Create Login Page
+
+reate:
+
+src/pages/Login.jsx
+
+import { useState } from "react";
+import api from "../api/api";
+import { useNavigate } from "react-router-dom";
+
+function Login() {
+
+    const navigate = useNavigate();
+
+    const [email,setEmail]=useState("");
+
+    const [password,setPassword]=useState("");
+
+    const login=async()=>{
+
+        try{
+
+            const res=await api.post("/auth/login",{
+
+                email,
+                password
+
+            });
+
+            localStorage.setItem("token",res.data.token);
+
+            alert("Login Successful");
+
+            navigate("/");
+
+        }
+
+        catch(err){
+
+            alert("Invalid Credentials");
+
+        }
+
+    }
+
+    return(
+
+        <div>
+
+            <h1>Login</h1>
+
+            <input
+                placeholder="Email"
+                onChange={(e)=>setEmail(e.target.value)}
+            />
+
+            <br/><br/>
+
+            <input
+                type="password"
+                placeholder="Password"
+                onChange={(e)=>setPassword(e.target.value)}
+            />
+
+            <br/><br/>
+
+            <button onClick={login}>
+
+                Login
+
+            </button>
+
+        </div>
+
+    )
+
+}
+
+export default Login;
+
+**** Step 5 Add Login Route
+
+Open:
+
+App.jsx
+
+Add:
+
+import Login from "./pages/Login";
+
+Then add the route:
+
+<Route path="/login" element={<Login />} />
+
+**** Final App.jsx
+
+$ nano App.jsx
+
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+
+import Navbar from "./components/Navbar";
+import Footer from "./components/Footer";
+
+import Home from "./pages/Home";
+import Cart from "./pages/Cart";
+import Orders from "./pages/Orders";
+import Login from "./pages/Login";
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Navbar />
+
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/cart" element={<Cart />} />
+        <Route path="/orders" element={<Orders />} />
+        <Route path="/login" element={<Login />} />
+      </Routes>
+
+      <Footer />
+    </BrowserRouter>
+  );
+}
+
+export default App;
+
+***** Step 6 Test Login
+
+$ npm run dev  (keep terminal open)
+
+Open:
+
+http://localhost:5173/login
+
+Login using:
+
+Email:
+rahul@example.com
+
+Password:
+Password123!
+
+Expected:
+
+Login Successful
+
+***** Step 8 Create Logout
+
+Replace your entire src/components/Navbar.jsx with the following:
+
+rc/components/ $ Navbar.jsx
+
+import { Link } from "react-router-dom";
+
+function Navbar() {
+
+  const logout = () => {
+    localStorage.removeItem("token");
+    window.location.href = "/login";
+  };
+
+  const token = localStorage.getItem("token");
+
+  return (
+    <nav
+      style={{
+        padding: "15px",
+        background: "#282c34",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center"
+      }}
+    >
+      <div>
+        <Link
+          to="/"
+          style={{ color: "white", marginRight: "20px", textDecoration: "none" }}
+        >
+          Home
+        </Link>
+
+        <Link
+          to="/cart"
+          style={{ color: "white", marginRight: "20px", textDecoration: "none" }}
+        >
+          Cart
+        </Link>
+
+        <Link
+          to="/orders"
+          style={{ color: "white", marginRight: "20px", textDecoration: "none" }}
+        >
+          Orders
+        </Link>
+      </div>
+
+      <div>
+        {token ? (
+          <button
+            onClick={logout}
+            style={{
+              padding: "8px 16px",
+              cursor: "pointer"
+            }}
+          >
+            Logout
+          </button>
+        ) : (
+          <Link
+            to="/login"
+            style={{ color: "white", textDecoration: "none" }}
+          >
+            Login
+          </Link>
+        )}
+      </div>
+    </nav>
+  );
+}
+
+export default Navbar;
+
+*** After updating
+
+Restart the frontend:
+
+$ npm run dev
+
+Test
+Open http://localhost:5173/login
+Login successfully.
+You should see a Logout button in the navbar.
+Click Logout.
+It should:
+Remove the JWT from localStorage
+Redirect to /login
+
+At this point your project includes:
+
+✅ User Registration
+✅ User Login (JWT)
+✅ Protected Backend APIs
+✅ React Login Page
+✅ Automatic JWT attachment via Axios
+✅ Logout functionality
+
+Authentication Flow You Have Built
+Register
+     │
+     ▼
+PostgreSQL
+     │
+     ▼
+Login
+     │
+     ▼
+JWT Token
+     │
+     ▼
+React Local Storage
+     │
+     ▼
+Axios Interceptor
+     │
+     ▼
+Authorization Header
+     │
+     ▼
+Backend Middleware
+     │
+     ▼
+Protected API
