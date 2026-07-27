@@ -335,4 +335,533 @@ The token contains information like:
   "exp": 1753700000
 }
 
-Next Phase: Authorization Middleware
+**** Next Phase: Authorization Middleware
+
+This middleware will:
+
+Read the Authorization: Bearer <token> header.
+Verify the JWT.
+Reject requests with missing or invalid tokens (401 Unauthorized).
+Attach the authenticated user's information to req.user.
+Protect endpoints like /orders and /cart.
+
+What is Middleware?
+
+A middleware is a function that executes before your API endpoint.
+
+Without middleware:
+
+Client
+   │
+   ▼
+GET /orders
+   │
+   ▼
+Orders API
+
+Anyone can access /orders.
+
+With middleware:
+
+Client
+   │
+Authorization: Bearer JWT_TOKEN
+   │
+   ▼
+Auth Middleware
+   │
+Verify JWT
+   │
+ ┌─────────────┐
+ │ Valid Token │
+ └─────────────┘
+        │
+        ▼
+ Orders API
+
+If the token is invalid:
+
+401 Unauthorized
+
+Step 1 Create Middleware Folder
+
+You already created:
+
+backend/
+    middleware/
+
+Inside it create
+
+$ nano authMiddleware.js
+
+Step 2 Paste this code
+
+const jwt = require("jsonwebtoken");
+
+const authMiddleware = (req, res, next) => {
+
+    // Read Authorization header
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader) {
+        return res.status(401).json({
+            message: "Access Denied. No token provided."
+        });
+    }
+
+    // Expected format: Bearer <token>
+    const token = authHeader.split(" ")[1];
+
+    if (!token) {
+        return res.status(401).json({
+            message: "Invalid token format."
+        });
+    }
+
+    try {
+
+        const decoded = jwt.verify(
+            token,
+            process.env.JWT_SECRET
+        );
+
+        // Save logged-in user information
+        req.user = decoded;
+
+        next();
+
+    } catch (err) {
+
+        return res.status(401).json({
+            message: "Invalid or expired token."
+        });
+
+    }
+
+};
+
+module.exports = authMiddleware;
+
+What does this code do?
+Reads the Authorization header
+const authHeader = req.headers.authorization;
+
+If the request contains:
+
+Authorization: Bearer eyJhbGc...
+
+it reads the entire string.
+
+Extracts the token
+Bearer eyJhbGc....
+
+becomes
+
+eyJhbGc....
+
+using
+
+authHeader.split(" ")[1]
+
+Verifies JWT
+jwt.verify(token, process.env.JWT_SECRET)
+
+If valid:
+
+{
+ id:1,
+ email:"rahul@example.com",
+ iat:....
+ exp:....
+}
+
+is returned.
+
+
+Saves user information
+req.user = decoded;
+
+Now every protected API knows who is logged in.
+
+Example:
+
+console.log(req.user);
+
+prints
+
+{
+ id:1,
+ email:"rahul@example.com"
+}
+
+
+Step 3 Protect APIs
+
+Open
+
+server.js
+
+Import middleware:
+
+const authMiddleware = require("./middleware/authMiddleware");
+
+Instead of:
+
+app.get("/products", async (req,res)=>{
+
+change to
+
+app.get("/products", authMiddleware, async (req,res)=>{
+
+Similarly protect:
+
+app.get("/orders", authMiddleware, async (req,res)=>{
+
+and
+
+app.post("/cart", authMiddleware, async (req,res)=>{
+
+and
+
+app.get("/cart", authMiddleware, async (req,res)=>{
+
+At this stage, you can leave /health, /auth/register, and /auth/login unprotected, because users need to access them without already having a token.
+
+Updated server.js
+
+/backen $ nano server.js
+
+const express = require("express");
+const cors = require("cors");
+const dotenv = require("dotenv");
+
+// Database
+const pool = require("./db");
+
+// Auth Routes
+const authRoutes = require("./routes/authRoutes");
+
+// Auth Middleware
+const authMiddleware = require("./middleware/authMiddleware");
+
+// DynamoDB
+const dynamoDB = require("./dynamodb");
+
+const {
+  PutCommand,
+  ScanCommand
+} = require("@aws-sdk/lib-dynamodb");
+
+const { v4: uuidv4 } = require("uuid");
+
+dotenv.config();
+
+const app = express();
+
+app.use(cors());
+app.use(express.json());
+
+// Authentication Routes
+app.use("/auth", authRoutes);
+
+/* =========================
+   Health Check
+========================= */
+
+app.get("/health", (req, res) => {
+  res.json({ status: "Backend Running" });
+});
+
+/* =========================
+   Products (Protected)
+========================= */
+
+app.get("/products", authMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM products");
+    res.json(result.rows);
+  } catch (err) {
+    console.log(err.message);
+    res.status(500).send("Server Error");
+  }
+});
+
+/* =========================
+   Get Orders (Protected)
+========================= */
+
+app.get("/orders", authMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM orders ORDER BY id"
+    );
+
+    res.json(result.rows);
+
+  } catch (err) {
+    console.log(err);
+    res.status(500).send("Server Error");
+  }
+});
+
+/* =========================
+   Create Order
+========================= */
+
+app.post("/orders", async (req, res) => {
+  try {
+
+    const {
+      product_id,
+      quantity,
+      customer_name
+    } = req.body;
+
+    const result = await pool.query(
+      `INSERT INTO orders
+      (product_id, quantity, customer_name)
+      VALUES ($1,$2,$3)
+      RETURNING *`,
+      [product_id, quantity, customer_name]
+    );
+
+    res.status(201).json(result.rows[0]);
+
+  } catch (err) {
+
+    console.log(err);
+
+    res.status(500).send("Server Error");
+
+  }
+});
+
+/* =========================
+   Add Product To Cart
+   (Protected)
+========================= */
+
+app.post("/cart", authMiddleware, async (req, res) => {
+
+  try {
+
+    const {
+      productId,
+      productName,
+      price
+    } = req.body;
+
+    const cartItem = {
+
+      cartId: uuidv4(),
+
+      productId,
+
+      productName,
+
+      price
+
+    };
+
+    await dynamoDB.send(
+
+      new PutCommand({
+
+        TableName: "shopping-cart",
+
+        Item: cartItem
+
+      })
+
+    );
+
+    res.json({
+
+      message: "Product added to cart",
+
+      cartItem
+
+    });
+
+  } catch (err) {
+
+    console.log(err);
+
+    res.status(500).send("Error");
+
+  }
+
+});
+
+/* =========================
+   View Cart
+   (Protected)
+========================= */
+
+app.get("/cart", authMiddleware, async (req, res) => {
+
+  try {
+
+    const data = await dynamoDB.send(
+
+      new ScanCommand({
+
+        TableName: "shopping-cart"
+
+      })
+
+    );
+
+    res.json(data.Items);
+
+  } catch (err) {
+
+    console.error(err);
+
+    res.status(500).send("Error");
+
+  }
+
+});
+
+/* =========================
+   Start Server
+========================= */
+
+const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, () => {
+  console.log(`Backend running on ${PORT}`);
+});
+
+
+***** After updating server.js
+
+Run these commands:
+
+$ docker build -t ecommerce-backend-new:latest .
+
+Tag the Docker image
+
+$ docker tag ecommerce-backend-new:latest 618307388993.dkr.ecr.ap-southeast-2.amazonaws.com/ecommerce-backend-new:latest
+
+*** Re-authenticate Docker with ECR
+
+Run this first:
+
+$ aws ecr get-login-password --region ap-southeast-2 | docker login --username AWS --password-stdin 618307388993.dkr.ecr.ap-southeast-2.amazonaws.com
+Login Succeeded
+
+Verify your AWS identity
+
+Run:
+
+aws sts get-caller-identity
+
+Try pushing again
+
+$ docker push 618307388993.dkr.ecr.ap-southeast-2.amazonaws.com/ecommerce-backend-new:latest
+
+Restart backend:
+
+$ kubectl rollout restart deployment ecommerce-backend
+
+$ kubectl rollout status deployment ecommerce-backend
+deployment "ecommerce-backend" successfully rolled out
+
+Step 4 Restart Backend
+
+Local
+
+$ npm start
+
+Step 5 Test Without Token
+
+Try:
+
+curl http://localhost:5000/products
+
+Expected:
+
+{
+  "message":"Access Denied. No token provided."
+}
+
+Step 6 Login
+
+curl -X POST http://afae7996fdf6c4c5ea785cede0437c37-127026330.ap-southeast-2.elb.amazonaws.com/auth/login \
+-H "Content-Type: application/json" \
+-d '{
+"email":"rahul@example.com",
+"password":"Password123!"
+}'
+
+
+You'll receive:
+
+{
+  "message":"Login Successful",
+  "token":"eyJhbGc..."
+}
+
+*** My outcome:
+
+{"message":"Login Successful","token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJyYWh1bEBleGFtcGxlLmNvbSIsImlhdCI6MTc4NTEzMDU0NiwiZXhwIjoxNzg1MTM0MTQ2fQ.8Q-1j7-mWj9W5fA4vyDWF
+p_C1iAVG58M2YtiYT2fI2w"}
+
+Step 7 Access Protected API
+
+Replace <YOUR_TOKEN> with the token you received:
+
+curl http://localhost:5000/products \
+-H "Authorization: Bearer <YOUR_TOKEN>"
+
+Expected response:
+
+[
+  {
+    "id":1,
+    "name":"Laptop",
+    "price":"50000.00"
+  },
+  {
+    "id":2,
+    "name":"Mobile",
+    "price":"20000.00"
+  }
+]
+
+** Test the protected /products API
+
+**** Actual command:
+
+curl http://afae7996fdf6c4c5ea785cede0437c37-127026330.ap-southeast-2.elb.amazonaws.com/products \
+-H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJyYWh1bEBleGFtcGxlLmNvbSIsImlhdCI6MTc4NTEzMDU0NiwiZXhwIjoxNzg1MTM0MTQ2fQ.8Q-1j7-mWj9W5fA4vyDWFp_C1iAVG58M2YtiYT2fI2w"
+
+[{"id":1,"name":"Laptop","price":"50000.00"},{"id":2,"name":"Mobile","price":"20000.00"},{"id":3,"name":"Keyboard","price":"1000.00"}]
+
+**** Get Orders
+
+curl http://afae7996fdf6c4c5ea785cede0437c37-127026330.ap-southeast-2.elb.amazonaws.com/orders \
+-H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJyYWh1bEBleGFtcGxlLmNvbSIsImlhdCI6MTc4NTEzMDU0NiwiZXhwIjoxNzg1MTM0MTQ2fQ.8Q-1j7-mWj9W5fA4vyDWFp_C1iAVG58M2YtiYT2fI2w"
+
+[{"id":1,"product_id":1,"quantity":2,"customer_name":"Rahul","order_date":"2026-07-26T09:29:49.358Z"},{"id":2,"product_id":2,"quantity":1,"customer_name":"Amit","order_date":"2026-07-26T09:29:
+49.358Z"},{"id":3,"product_id":3,"quantity":5,"customer_name":"Priya","order_date":"2026-07-26T09:29:49.358Z"}]
+
+
+***** View Cart
+
+curl http://afae7996fdf6c4c5ea785cede0437c37-127026330.ap-southeast-2.elb.amazonaws.com/cart \
+-H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJyYWh1bEBleGFtcGxlLmNvbSIsImlhdCI6MTc4NTEzMDU0NiwiZXhwIjoxNzg1MTM0MTQ2fQ.8Q-1j7-mWj9W5fA4vyDWFp_C1iAVG58M2YtiYT2fI2w"
+
+[{"price":50000,"productId":1,"cartId":"93d7e56c-a9d8-4104-aff8-f7244b33c22c","productName":"Laptop"},{"price":"50000.00","productId":1,"cartId":"de4ef60b-29c4-47c5-b45f-49ffecacbbab","product
+Name":"Laptop"},{"price":"20000.00","productId":2,"cartId":"41819b7a-51ab-42c5-89fd-db6b98286cd4","productName":"Mobile"}]
+
+
+The middleware above is a solid foundation. In enterprise applications, we often extend it by:
+
+Checking that the Authorization header starts with Bearer .
+Handling malformed headers more gracefully.
+Logging authentication failures.
+Adding role-based authorization (e.g., admin, customer) after the JWT is verified.
+Moving protected routes into separate route files instead of defining them all in server.js.
